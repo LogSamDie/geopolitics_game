@@ -1,0 +1,163 @@
+:root {
+  --paper: #f0e7d2;
+  --panel: #f7f1e4;
+  --ink: #2b2219;
+  --muted: #6f604f;
+  --rule: #cdbfa5;
+  --accent: #a4343e;
+  --sea: #d4dde0;
+  --land: #ebe2cb;
+  --border: #7a6652;
+  font:
+    15px/1.5 'Iowan Old Style',
+    Georgia,
+    'Palatino Linotype',
+    'Book Antiqua',
+    'Noto Serif',
+    'Liberation Serif',
+    serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  background: var(--paper);
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.5rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: 28px;
+  padding-bottom: 0.4rem;
+  border-bottom: 3px double var(--ink);
+}
+
+h2 {
+  font-size: 20px;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+p {
+  margin: 0 0 0.5rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--panel);
+}
+
+input,
+select {
+  border-color: var(--rule);
+}
+
+input[type='number'] {
+  width: 4.5rem;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  background: #e9dfc8;
+}
+
+button.primary {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+button.primary:hover {
+  background: #46382a;
+}
+
+button:disabled {
+  color: var(--muted);
+  border-color: var(--rule);
+  background: var(--panel);
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--accent);
+}
+
+.notice {
+  padding: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+/* A legend square in a player's colour, as an atlas prints in its margin. */
+.swatch {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  background: var(--owner);
+  border: 1px solid var(--border);
+  vertical-align: -1px;
+}
+
+@keyframes stamp {
+  from {
+    transform: scale(1.4);
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
