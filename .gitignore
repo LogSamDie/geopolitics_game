@@ -12,3 +12,6 @@ frontend/dist/
 # Local
 .env
 .DS_Store
+
+# Tooling output
+.coverage

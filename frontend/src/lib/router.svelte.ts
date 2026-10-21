@@ -9,3 +9,12 @@ export function navigate(path: string): void {
 window.addEventListener('popstate', () => {
   route.path = location.pathname
 })
+
+// Internal links navigate in place; modifier clicks keep their browser meaning.
+document.addEventListener('click', (e) => {
+  const link = (e.target as Element).closest('a[href^="/"]')
+  if (link instanceof HTMLAnchorElement && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    e.preventDefault()
+    navigate(link.pathname)
+  }
+})

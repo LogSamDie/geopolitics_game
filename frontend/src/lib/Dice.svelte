@@ -6,97 +6,61 @@
     live?: boolean // animate the roll
   }
   let { pairs, live = false }: Props = $props()
+
+  // Pips as cells of a 3x3 grid numbered 0-8 row by row; the index is the face value.
+  const PIPS = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]]
 </script>
 
-<!-- Attacker dice are paper with ink pips, defender dice ink with paper pips. A losing die fades. -->
-<span class="dice" class:live>
+{#snippet die(value: number, lost: boolean, defender: boolean)}
+  <svg class="die" class:lost class:defender viewBox="0 0 20 20">
+    <rect x="0.5" y="0.5" width="19" height="19" rx="2" />
+    {#each PIPS[value] ?? [] as cell}<circle cx={5 + 5 * (cell % 3)} cy={5 + 5 * Math.floor(cell / 3)} r="1.8" />{/each}
+  </svg>
+{/snippet}
+
+<!-- One column per pair, the attacker's die above the defender's. A losing die fades. -->
+<div class="dice" class:live>
   {#each pairs as [a, d], i (i)}
-    <span class="pair" style="--i: {i}" aria-label="{a} against {d}">
-      <i class="die" data-pips={a} class:lost={a < d}></i>
-      <i class="die defender" data-pips={d} class:lost={d < a}></i>
-    </span>
+    <span class="pair" style:--i={i}>{@render die(a, a < d, false)}{@render die(d, d < a, true)}</span>
   {/each}
-</span>
+</div>
 
 <style>
   .dice {
-    display: inline-flex;
+    display: flex;
     flex-wrap: wrap;
-    gap: 0.25em 0.75em;
+    gap: 0.25em 0.5em;
   }
 
   .pair {
-    display: inline-flex;
+    display: grid;
     gap: 0.25em;
   }
 
   .die {
-    --pip: radial-gradient(circle, currentColor 0.15em, transparent 0.21em);
-    display: inline-block;
     width: 2em;
     height: 2em;
-    border: 1px solid var(--ink);
-    border-radius: 3px;
-    background-color: var(--panel);
-    color: var(--ink);
-    background-image: var(--pip);
-    background-position: 50% 50%;
-    background-size: 0.6em 0.6em;
-    background-repeat: no-repeat;
   }
 
-  .defender {
-    background-color: var(--ink);
-    color: var(--panel);
+  rect {
+    fill: var(--panel);
+    stroke: var(--ink);
+  }
+
+  circle {
+    fill: var(--ink);
+  }
+
+  .defender rect {
+    fill: var(--ink);
+  }
+
+  .defender circle {
+    fill: var(--panel);
   }
 
   .lost {
     opacity: 0.35;
-  }
-
-  [data-pips='2'] {
-    background-image: var(--pip), var(--pip);
-    background-position:
-      25% 25%,
-      75% 75%;
-  }
-
-  [data-pips='3'] {
-    background-image: var(--pip), var(--pip), var(--pip);
-    background-position:
-      25% 25%,
-      50% 50%,
-      75% 75%;
-  }
-
-  [data-pips='4'] {
-    background-image: var(--pip), var(--pip), var(--pip), var(--pip);
-    background-position:
-      25% 25%,
-      75% 25%,
-      25% 75%,
-      75% 75%;
-  }
-
-  [data-pips='5'] {
-    background-image: var(--pip), var(--pip), var(--pip), var(--pip), var(--pip);
-    background-position:
-      25% 25%,
-      75% 25%,
-      50% 50%,
-      25% 75%,
-      75% 75%;
-  }
-
-  [data-pips='6'] {
-    background-image: var(--pip), var(--pip), var(--pip), var(--pip), var(--pip), var(--pip);
-    background-position:
-      25% 25%,
-      25% 50%,
-      25% 75%,
-      75% 25%,
-      75% 50%,
-      75% 75%;
   }
 
   /* The roll: each pair drops onto the page in turn, then a losing die settles to faded. */

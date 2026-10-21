@@ -98,9 +98,7 @@
       <ul>
         {#each games as game (game.id)}
           <li>
-            <a href="/games/{game.id}" onclick={(e) => (e.preventDefault(), navigate(`/games/${game.id}`))}
-              >{game.country}</a
-            >
+            <a href="/games/{game.id}">{game.country}</a>
             <span>{describe(game)}, {new Date(game.created).toLocaleDateString()}</span>
           </li>
         {/each}

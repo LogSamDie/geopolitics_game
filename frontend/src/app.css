@@ -20,6 +20,7 @@
   color: var(--ink);
   background: var(--paper);
   color-scheme: light;
+  accent-color: var(--ink);
 }
 
 * {
@@ -28,7 +29,6 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
 }
 
 h1,
@@ -66,7 +66,7 @@ button,
 input,
 select {
   font: inherit;
-  color: inherit;
+  color: var(--ink);
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--ink);
   border-radius: 2px;
@@ -95,7 +95,7 @@ button.primary {
   color: var(--panel);
 }
 
-button.primary:hover {
+button.primary:enabled:hover {
   background: #46382a;
 }
 
@@ -116,6 +116,7 @@ button:disabled {
 }
 
 .error {
+  margin-top: 0.5rem;
   color: var(--accent);
 }
 
@@ -153,11 +154,19 @@ button:disabled {
   }
 }
 
+@media (pointer: coarse) {
+  input,
+  select {
+    font-size: 16px; /* below this iOS zooms the page into a focused field */
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
   ::after {
     animation-duration: 1ms !important;
+    animation-delay: 0s !important;
     transition-duration: 1ms !important;
   }
 }

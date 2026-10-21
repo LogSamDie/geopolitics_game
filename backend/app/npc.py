@@ -57,10 +57,6 @@ class Option(NamedTuple):
     target: Country
     odds: float
 
-    @property
-    def gain(self) -> float:
-        return self.odds * conquest_bonus(self.target.value)
-
 
 def play_turn(game: Game) -> None:
     """Play the current NPC's whole turn."""
@@ -91,7 +87,7 @@ def play_turn(game: Game) -> None:
             else "No country has the 2 soldiers needed to attack."
         )
         return
-    source, target, odds = max(viable, key=lambda o: o.gain)
+    source, target, odds = max(viable, key=lambda o: o.odds * conquest_bonus(o.target.value))
     game.attack(
         source.code,
         target.code,

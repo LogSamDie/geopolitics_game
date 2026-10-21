@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { FeatureCollection, Geometry } from 'geojson'
+  import type { Feature, FeatureCollection, Geometry } from 'geojson'
   import { GeoJSONSource, Map as MapLibre, Marker, setWorkerUrl, type PointLike } from 'maplibre-gl'
   import 'maplibre-gl/dist/maplibre-gl.css'
   // MapLibre loads its worker by a URL computed at runtime, which bundlers cannot follow.
@@ -12,7 +12,7 @@
     countries: Record<string, Country>
     players: Player[]
     marked: string[] // selected or fighting countries: outlined, and joined by a line
-    onselect: (code: string) => void
+    onselect?: (code: string) => void // present only while the viewer may choose a country
   }
   let { countries, players, marked, onselect }: Props = $props()
 
@@ -93,17 +93,17 @@
         }
         created.on('click', (e) => {
           const code = codeAt(e.point)
-          if (code !== undefined) onselect(code)
+          if (code !== undefined) onselect?.(code)
         })
         created.on('mousemove', (e) => {
-          created.getCanvas().style.cursor = codeAt(e.point) === undefined ? '' : 'pointer'
+          created.getCanvas().style.cursor = onselect && codeAt(e.point) !== undefined ? 'pointer' : ''
         })
         // One marker per country in the game, so tiny countries stay visible and clickable.
         for (const { properties } of world.features) {
           const centre: [number, number] = [properties.lon, properties.lat]
           centres[properties.code] = centre
           const element = markerElements[properties.code]
-          if (element) new Marker({ element }).setLngLat(centre).addTo(created)
+          if (element) new Marker({ element, subpixelPositioning: true }).setLngLat(centre).addTo(created)
         }
         map = created
       },
@@ -119,7 +119,7 @@
       map.setFeatureState({ source: 'world', id: country.code }, state)
     }
     const [a, b] = marked.map((code) => centres[code])
-    const line: GeoJSON.Feature | undefined =
+    const line: Feature | undefined =
       a && b ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [a, b] } } : undefined
     map.getSource<GeoJSONSource>('line')?.setData(line ?? EMPTY)
   })
@@ -132,13 +132,14 @@
   <div
     class="marker"
     class:marked={marked.includes(country.code)}
+    class:clickable={onselect}
     style:--owner={owner}
     style:--on-owner={textOn(owner)}
     bind:this={markerElements[country.code]}
     role="button"
     tabindex="0"
-    onclick={(e) => (e.stopPropagation(), onselect(country.code))}
-    onkeydown={(e) => e.key === 'Enter' && onselect(country.code)}
+    onclick={(e) => (e.stopPropagation(), onselect?.(country.code))}
+    onkeydown={(e) => e.key === 'Enter' && onselect?.(country.code)}
   >
     <span class="name">{country.name}</span>
     {#key country.soldiers}<span class="count">{country.soldiers}</span>{/key}
@@ -164,8 +165,13 @@
     font-size: 11px;
     line-height: 1.2;
     white-space: nowrap;
+    transition:
+      box-shadow 0.15s,
+      border-color 0.15s;
+  }
+
+  .marker.clickable {
     cursor: pointer;
-    transition: box-shadow 0.15s;
   }
 
   .marker.marked {

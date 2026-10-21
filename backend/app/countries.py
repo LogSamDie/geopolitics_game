@@ -33,10 +33,8 @@ class CountryInfo(BaseModel):
     value: int  # soldiers it starts with
 
 
-def load_countries() -> dict[str, CountryInfo]:
-    """All playable countries keyed by ISO code, from countries.json (see scripts/)."""
-    raw = json.loads((Path(__file__).parent / "countries.json").read_text())
-    return {c["code"]: CountryInfo(**c, value=soldier_value(c["population"])) for c in raw}
-
-
-COUNTRIES = load_countries()
+# All playable countries keyed by ISO code, from countries.json (see scripts/).
+COUNTRIES = {
+    c["code"]: CountryInfo(**c, value=soldier_value(c["population"]))
+    for c in json.loads((Path(__file__).parent / "countries.json").read_text())
+}

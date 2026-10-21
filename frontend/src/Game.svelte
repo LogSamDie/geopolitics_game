@@ -6,8 +6,7 @@
   import Log from './lib/Log.svelte'
   import Map from './lib/Map.svelte'
   import { Playback } from './lib/playback.svelte'
-  import { navigate } from './lib/router.svelte'
-  import type { Command, User } from './lib/types'
+  import type { Command, Kind, User } from './lib/types'
 
   interface Props {
     id: string
@@ -23,6 +22,7 @@
   let target = $state<string | null>(null)
   let amount = $state(1)
   let copied = $state(false)
+  let ended = $state(false) // the end of the game has been shown once
 
   onMount(() => {
     api.game(id).then(
@@ -52,12 +52,25 @@
   const myTurn = $derived(mine && playback?.busy === false && turn?.phase !== 'over')
   const from = $derived(source === null ? undefined : playback?.countries[source])
   const to = $derived(target === null ? undefined : playback?.countries[target])
+  const limit = $derived(turn?.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
+  const validAmount = $derived(Number.isInteger(amount) && amount >= 1 && amount <= limit)
+
+  // The battle card stays up from the attack until something unrelated happens.
+  const QUIET: Kind[] = ['turn', 'reinforced', 'transferred', 'skipped']
+  const inBattle = $derived(turn?.attack != null && last !== undefined && !QUIET.includes(last.kind))
+  const roll = $derived(
+    playback?.log.slice(playback.log.findLastIndex((e) => e.kind === 'attacked')).findLast((e) => e.kind === 'rolled'),
+  )
   const fighting = $derived(turn?.phase === 'attack' && turn.attack ? [turn.attack.source, turn.attack.target] : [])
   const marked = $derived(fighting.length > 0 ? fighting : [source, target].filter((c) => c !== null))
-  const validAmount = $derived(Number.isInteger(amount) && amount >= 1)
+
+  $effect(() => {
+    if (turn?.phase === 'over') ended = true
+  })
 
   const nameOf = (playerId: string | null) => playback?.players.find((p) => p.id === playerId)?.name ?? ''
   const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  const soldiers = (n: number) => count(n, 'soldier', 'soldiers')
 
   // Countries and soldiers held by each player, for the legend.
   const tally = $derived.by(() => {
@@ -71,16 +84,12 @@
   })
 
   const heading = $derived.by(() => {
-    if (!playback || !turn || !human) return ''
+    if (!turn || !human) return ''
     if (turn.phase === 'over')
       return turn.winner === null ? `${human.name} is out of the game` : `${nameOf(turn.winner)} holds the world`
-    if (turn.phase === 'attack' && turn.attack) {
-      const src = playback.countries[turn.attack.source]
-      const dst = playback.countries[turn.attack.target]
-      return `${src?.name} (${src?.soldiers}) attacks ${dst?.name} (${dst?.soldiers})`
-    }
     if (!myTurn) return mine ? 'Your turn' : `${nameOf(turn.player)}'s turn`
-    if (turn.phase === 'reinforce') return `Place ${turn.reinforcements} soldiers`
+    if (turn.phase === 'reinforce') return `Place ${soldiers(turn.reinforcements)}`
+    if (turn.phase === 'attack') return 'Your attack'
     return turn.attack ? 'Your attack is over' : 'Your move'
   })
 
@@ -101,16 +110,16 @@
   }
 
   function select(code: string): void {
-    if (!myTurn || !turn || !human || !playback) return
-    const mine = playback.countries[code]?.owner === human.id
+    if (!turn || !human || !playback) return
+    const own = playback.countries[code]?.owner === human.id
     if (turn.phase === 'reinforce') {
-      if (mine) source = code
+      if (own) source = code
     } else if (turn.phase === 'action') {
       if (code === source) {
         source = null // clicking the source again clears the choice
         target = null
       } else if (source === null) {
-        if (mine) source = code
+        if (own) source = code
       } else {
         target = code
       }
@@ -128,12 +137,12 @@
 {#if playback && turn && human}
   <div class="layout">
     <header>
-      <a class="brand" href="/" onclick={(e) => (e.preventDefault(), navigate('/'))}>Geopolitics</a>
+      <a class="brand" href="/">Geopolitics</a>
       <span class="status">
         {#if turn.phase === 'over'}
           The game is over
         {:else}
-          Round {turn.round}, <i class="swatch" style="--owner: {colorOf(playback.players, turn.player)}"></i>
+          Round {turn.round}: <i class="swatch" style:--owner={colorOf(playback.players, turn.player)}></i>
           {mine ? 'your turn' : `${nameOf(turn.player)}'s turn`}
         {/if}
       </span>
@@ -141,77 +150,74 @@
         <input type="checkbox" bind:checked={playback.fast} onchange={() => (playback?.pause(), playback?.play())} />
         Fast-forward
       </label>
-      <button onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
+      <button class="copy" onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
     </header>
 
     <div class="board">
-      <Map countries={playback.countries} players={playback.players} {marked} onselect={select} />
+      <Map countries={playback.countries} players={playback.players} {marked} onselect={myTurn ? select : undefined} />
+      {#if inBattle && turn.attack && last}
+        {@const src = playback.countries[turn.attack.source]}
+        {@const dst = playback.countries[turn.attack.target]}
+        <div class="battle">
+          <div class="fight">
+            <div class="sides">
+              {#each [src, dst] as side, i (i)}
+                <span
+                  ><i class="swatch" style:--owner={colorOf(playback.players, side?.owner ?? '')}></i>
+                  {side?.name}</span
+                >
+                <b>{side?.soldiers}</b>
+              {/each}
+            </div>
+            {#if roll?.dice}
+              {#key roll.seq}<Dice pairs={roll.dice} live={!playback.fast} />{/key}
+            {/if}
+          </div>
+          <p>{last.text}</p>
+          {#if myTurn && turn.phase === 'attack'}
+            <div class="row">
+              <button class="primary" disabled={pending} onclick={() => play({ kind: 'roll' })}>Roll</button>
+              <button disabled={pending} onclick={() => play({ kind: 'stop' })}>Stop attack and end turn</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
-    <aside>
-      <section class="legend">
-        {#each playback.players as player (player.id)}
-          {@const row = tally[player.id]}
-          <div class:current={player.id === turn.player} class:out={!row}>
-            <i class="swatch" style="--owner: {colorOf(playback.players, player.id)}"></i>
-            <span>{player.name}{!player.npc && owner ? ' (you)' : ''}</span>
-            <span class="muted">
-              {#if row}
-                {count(row.countries, 'country', 'countries')}, {count(row.soldiers, 'soldier', 'soldiers')}
-              {:else}
-                out
-              {/if}
-            </span>
-          </div>
-        {/each}
-      </section>
+    {#if ended}
+      <div class="replay">
+        <button onclick={() => playback?.replay()}>Replay</button>
+        <input
+          type="range"
+          min="1"
+          max={playback.events.length}
+          bind:value={playback.shown}
+          aria-label="Replay position"
+        />
+        <span class="muted">Step {playback.shown} of {playback.events.length}</span>
+      </div>
+    {/if}
 
+    <aside>
       <section class="action">
         <h3>{heading}</h3>
-        {#if playback.over}
-          <div class="row">
-            <button onclick={() => playback?.replay()}>Replay</button>
-            <input
-              type="range"
-              min="1"
-              max={playback.events.length}
-              bind:value={playback.shown}
-              aria-label="Replay position"
-            />
-            <span class="muted">Move {playback.shown} of {playback.events.length}</span>
-          </div>
-        {/if}
-        {#if last}
-          <p>
-            {last.text}
-            {#if last.reason}<em class="muted">{last.reason}</em>{/if}
-          </p>
-          {#if last.dice}
-            {#key last.seq}<Dice pairs={last.dice} live />{/key}
-          {/if}
-        {/if}
+        {#if last?.reason}<p class="muted"><em>{last.reason}</em></p>{/if}
+        {#if last && !inBattle}<p>{last.text}</p>{/if}
         <fieldset disabled={pending}>
           {#if !owner}
             <p class="muted">
               You are watching this game.
-              {#if !user}
-                <a href="/" onclick={(e) => (e.preventDefault(), navigate('/'))}>Log in</a> to start your own.
-              {/if}
+              {#if !user}<a href="/">Log in</a> to start your own.{/if}
             </p>
-          {:else if myTurn && turn.phase === 'attack'}
-            <div class="row">
-              <button class="primary" onclick={() => play({ kind: 'roll' })}>Roll</button>
-              <button onclick={() => play({ kind: 'stop' })}>Stop attack and end turn</button>
-            </div>
           {:else if myTurn && turn.phase === 'reinforce'}
             <p class="muted">
               {from
-                ? `${from.name} has ${from.soldiers} soldiers. How many to add?`
+                ? `${from.name} has ${soldiers(from.soldiers)}. How many to add?`
                 : 'Click one of your countries on the map.'}
             </p>
             {#if from}
               <div class="row">
-                <input type="number" min="1" max={turn.reinforcements} bind:value={amount} />
+                <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
                 <button
                   class="primary"
                   disabled={!validAmount}
@@ -219,34 +225,38 @@
                 >
                   Place
                 </button>
-                <button onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: turn.reinforcements })}>
-                  Place all {turn.reinforcements}
-                </button>
+                {#if turn.reinforcements > 1}
+                  <button
+                    onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: turn.reinforcements })}
+                  >
+                    Place all {turn.reinforcements}
+                  </button>
+                {/if}
               </div>
             {/if}
-          {:else if myTurn}
+          {:else if myTurn && turn.phase === 'action'}
             <p class="muted">
               {#if !from && turn.attack}
                 You can still move soldiers: click one of your countries, then another. Then end the turn.
               {:else if !from}
                 Click one of your countries, then a target: an enemy to attack, or your own to move soldiers.
               {:else if !to}
-                From {from.name} ({from.soldiers} soldiers). Now click a target.
+                From {from.name} ({soldiers(from.soldiers)}). Now click a target.
               {/if}
             </p>
             {#if from && to && to.owner === human.id}
               <div class="row">
                 <span>{from.name} to {to.name}:</span>
-                <input type="number" min="1" max={from.soldiers - 1} bind:value={amount} />
+                <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
                 <button
                   class="primary"
-                  disabled={!validAmount || from.soldiers < 2}
+                  disabled={!validAmount}
                   onclick={() => play({ kind: 'transfer', source: from.code, target: to.code, soldiers: amount })}
                 >
                   Move
                 </button>
               </div>
-              {#if from.soldiers < 2}<p class="muted">{from.name} must keep its last soldier.</p>{/if}
+              {#if from.soldiers < 2}<p class="muted">{from.name} must keep at least 1 soldier.</p>{/if}
             {:else if from && to}
               <div class="row">
                 <span>{from.name} ({from.soldiers}) against {to.name} ({to.soldiers}):</span>
@@ -274,14 +284,24 @@
         {#if error}<p class="error">{error}</p>{/if}
       </section>
 
+      <section class="legend">
+        {#each playback.players as player (player.id)}
+          {@const row = tally[player.id]}
+          <div class:current={turn.phase !== 'over' && player.id === turn.player} class:out={!row}>
+            <i class="swatch" style:--owner={colorOf(playback.players, player.id)}></i>
+            <span>{player.name}{!player.npc && owner ? ' (you)' : ''}</span>
+            <span class="muted"
+              >{row ? `${count(row.countries, 'country', 'countries')}, ${soldiers(row.soldiers)}` : 'out'}</span
+            >
+          </div>
+        {/each}
+      </section>
+
       <Log events={playback.log} />
     </aside>
   </div>
 {:else if error}
-  <p class="error notice">
-    {error}
-    <a href="/" onclick={(e) => (e.preventDefault(), navigate('/'))}>Back to the start</a>
-  </p>
+  <p class="error notice">{error} <a href="/">Back to the start</a></p>
 {:else}
   <p class="muted notice">Loading the game…</p>
 {/if}
@@ -290,22 +310,32 @@
   .layout {
     display: grid;
     grid-template-columns: 1fr 23rem;
-    grid-template-rows: 2.75rem 1fr;
-    height: 100vh;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'header header'
+      'board aside'
+      'replay aside';
+    height: 100dvh;
   }
 
   header {
-    grid-column: 1 / -1;
+    grid-area: header;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 1.25rem;
-    padding: 0 1rem;
+    gap: 0.4rem 1.25rem;
+    min-height: 2.75rem;
+    padding: 0.4rem 1rem;
     border-bottom: 1px solid var(--ink);
+  }
+
+  header label {
+    cursor: pointer;
   }
 
   .brand {
     font-variant: small-caps;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     font-weight: 700;
     color: var(--ink);
     text-decoration: none;
@@ -315,24 +345,97 @@
     flex: 1 0 auto;
   }
 
+  .copy {
+    min-width: 7em;
+  }
+
   .board {
+    grid-area: board;
+    position: relative;
     min-height: 0;
   }
 
-  aside {
+  /* The battle, pinned to the foot of the plate like a cartouche. */
+  .battle {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1;
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 0.6rem 0.9rem;
+    background: var(--panel);
+    border: 1px solid var(--ink);
+    box-shadow: 0 0 0 3px var(--panel);
+  }
+
+  .fight {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .sides {
     display: grid;
-    grid-template-rows: auto auto 1fr;
+    grid-template-columns: auto auto;
+    grid-template-rows: 2em 2em;
+    gap: 0.25em 0.5em;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .sides b {
+    text-align: right;
+  }
+
+  .battle p {
+    margin: 0.5rem 0 0;
+  }
+
+  .replay {
+    grid-area: replay;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    border-top: 1px solid var(--ink);
+  }
+
+  .replay input {
+    flex: 1;
+    padding: 0;
+    border: 0;
+  }
+
+  .replay span {
+    min-width: 8em;
+  }
+
+  aside {
+    grid-area: aside;
+    display: grid;
+    grid-template-rows: auto auto minmax(10rem, 1fr);
     min-height: 0;
     padding: 0.75rem 1rem;
     background: var(--panel);
     border-left: 1px solid var(--ink);
-    overflow: hidden;
+    overflow-y: auto;
   }
 
-  aside > * + * {
+  aside > :global(* + *) {
     margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--rule);
+  }
+
+  .action {
+    min-height: 7rem; /* so the legend does not jump as the prompt changes */
+  }
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
 
   .legend {
@@ -357,41 +460,26 @@
 
   .legend .out {
     color: var(--muted);
+  }
+
+  .legend .out span:first-of-type {
     text-decoration: line-through;
   }
 
-  .action {
-    min-height: 11rem; /* so the log does not jump as the prompt changes */
-  }
-
-  .action em {
-    display: block;
-  }
-
-  fieldset {
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  input[type='range'] {
-    flex: 1;
-    min-width: 6rem;
-    padding: 0;
-    border: 0;
-    accent-color: var(--ink);
-  }
-
   @media (max-width: 800px) {
-    header {
-      flex-wrap: wrap;
-      padding: 0.4rem 1rem;
-    }
-
     .layout {
       grid-template-columns: 1fr;
-      grid-template-rows: auto 55vh auto;
+      grid-template-rows: auto 55vh auto auto;
+      grid-template-areas:
+        'header'
+        'board'
+        'replay'
+        'aside';
       height: auto;
+    }
+
+    .battle {
+      font-size: 13px;
     }
 
     aside {

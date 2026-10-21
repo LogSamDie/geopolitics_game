@@ -15,9 +15,29 @@
   "population": 48028334
  },
  {
+  "code": "AS",
+  "name": "American Samoa",
+  "population": 45319
+ },
+ {
+  "code": "AD",
+  "name": "Andorra",
+  "population": 83753
+ },
+ {
   "code": "AO",
   "name": "Angola",
   "population": 40215179
+ },
+ {
+  "code": "AI",
+  "name": "Anguilla",
+  "population": 14817
+ },
+ {
+  "code": "AG",
+  "name": "Antigua and Barbuda",
+  "population": 94626
  },
  {
   "code": "AR",
@@ -28,6 +48,11 @@
   "code": "AM",
   "name": "Armenia",
   "population": 2930915
+ },
+ {
+  "code": "AW",
+  "name": "Aruba",
+  "population": 108164
  },
  {
   "code": "AU",
@@ -50,9 +75,19 @@
   "population": 404628
  },
  {
+  "code": "BH",
+  "name": "Bahrain",
+  "population": 1675572
+ },
+ {
   "code": "BD",
   "name": "Bangladesh",
   "population": 177818044
+ },
+ {
+  "code": "BB",
+  "name": "Barbados",
+  "population": 282724
  },
  {
   "code": "BY",
@@ -73,6 +108,11 @@
   "code": "BJ",
   "name": "Benin",
   "population": 15170419
+ },
+ {
+  "code": "BM",
+  "name": "Bermuda",
+  "population": 64459
  },
  {
   "code": "BT",
@@ -100,6 +140,11 @@
   "population": 213562666
  },
  {
+  "code": "VG",
+  "name": "British Virgin Islands",
+  "population": 39936
+ },
+ {
   "code": "BN",
   "name": "Brunei",
   "population": 469775
@@ -120,6 +165,11 @@
   "population": 14729157
  },
  {
+  "code": "CV",
+  "name": "Cabo Verde",
+  "population": 529630
+ },
+ {
   "code": "KH",
   "name": "Cambodia",
   "population": 18051219
@@ -133,6 +183,11 @@
   "code": "CA",
   "name": "Canada",
   "population": 40467728
+ },
+ {
+  "code": "KY",
+  "name": "Cayman Islands",
+  "population": 77196
  },
  {
   "code": "CF",
@@ -160,14 +215,29 @@
   "population": 53936226
  },
  {
+  "code": "KM",
+  "name": "Comoros",
+  "population": 899010
+ },
+ {
   "code": "CG",
   "name": "Congo",
   "population": 6637785
  },
  {
+  "code": "CK",
+  "name": "Cook Islands",
+  "population": 12826
+ },
+ {
   "code": "CR",
   "name": "Costa Rica",
   "population": 5174789
+ },
+ {
+  "code": "CI",
+  "name": "C\u00f4te d'Ivoire",
+  "population": 33494346
  },
  {
   "code": "HR",
@@ -180,24 +250,19 @@
   "population": 10892659
  },
  {
+  "code": "CW",
+  "name": "Cura\u00e7ao",
+  "population": 185440
+ },
+ {
   "code": "CY",
   "name": "Cyprus",
   "population": 1382334
  },
  {
   "code": "CZ",
-  "name": "Czech Republic (Czechia)",
+  "name": "Czech Republic",
   "population": 10527781
- },
- {
-  "code": "CI",
-  "name": "C\u00f4te d'Ivoire",
-  "population": 33494346
- },
- {
-  "code": "CD",
-  "name": "DR Congo",
-  "population": 116452162
  },
  {
   "code": "DK",
@@ -210,9 +275,19 @@
   "population": 1199459
  },
  {
+  "code": "DM",
+  "name": "Dominica",
+  "population": 65511
+ },
+ {
   "code": "DO",
   "name": "Dominican Republic",
   "population": 11609500
+ },
+ {
+  "code": "CD",
+  "name": "DR Congo",
+  "population": 116452162
  },
  {
   "code": "EC",
@@ -255,6 +330,11 @@
   "population": 138902185
  },
  {
+  "code": "FO",
+  "name": "Faeroe Islands",
+  "population": 56526
+ },
+ {
   "code": "FK",
   "name": "Falkland Islands",
   "population": 3465
@@ -273,6 +353,11 @@
   "code": "FR",
   "name": "France",
   "population": 66746401
+ },
+ {
+  "code": "PF",
+  "name": "French Polynesia",
+  "population": 283076
  },
  {
   "code": "GA",
@@ -310,6 +395,16 @@
   "population": 55629
  },
  {
+  "code": "GD",
+  "name": "Grenada",
+  "population": 117362
+ },
+ {
+  "code": "GU",
+  "name": "Guam",
+  "population": 170185
+ },
+ {
   "code": "GT",
   "name": "Guatemala",
   "population": 18967978
@@ -335,9 +430,19 @@
   "population": 12037506
  },
  {
+  "code": "VA",
+  "name": "Holy See",
+  "population": 506
+ },
+ {
   "code": "HN",
   "name": "Honduras",
   "population": 11184760
+ },
+ {
+  "code": "HK",
+  "name": "Hong Kong",
+  "population": 7378602
  },
  {
   "code": "HU",
@@ -375,6 +480,11 @@
   "population": 5356950
  },
  {
+  "code": "IM",
+  "name": "Isle of Man",
+  "population": 84055
+ },
+ {
   "code": "IL",
   "name": "Israel",
   "population": 9647689
@@ -408,6 +518,11 @@
   "code": "KE",
   "name": "Kenya",
   "population": 58636412
+ },
+ {
+  "code": "KI",
+  "name": "Kiribati",
+  "population": 138445
  },
  {
   "code": "KW",
@@ -450,6 +565,11 @@
   "population": 7539851
  },
  {
+  "code": "LI",
+  "name": "Liechtenstein",
+  "population": 40368
+ },
+ {
   "code": "LT",
   "name": "Lithuania",
   "population": 2797338
@@ -458,6 +578,11 @@
   "code": "LU",
   "name": "Luxembourg",
   "population": 687448
+ },
+ {
+  "code": "MO",
+  "name": "Macao",
+  "population": 723188
  },
  {
   "code": "MG",
@@ -475,9 +600,24 @@
   "population": 36385115
  },
  {
+  "code": "MV",
+  "name": "Maldives",
+  "population": 531517
+ },
+ {
   "code": "ML",
   "name": "Mali",
   "population": 25932275
+ },
+ {
+  "code": "MT",
+  "name": "Malta",
+  "population": 549011
+ },
+ {
+  "code": "MH",
+  "name": "Marshall Islands",
+  "population": 35075
  },
  {
   "code": "MR",
@@ -485,14 +625,29 @@
   "population": 5461319
  },
  {
+  "code": "MU",
+  "name": "Mauritius",
+  "population": 1265059
+ },
+ {
   "code": "MX",
   "name": "Mexico",
   "population": 132997658
  },
  {
+  "code": "FM",
+  "name": "Micronesia",
+  "population": 114183
+ },
+ {
   "code": "MD",
   "name": "Moldova",
   "population": 2961253
+ },
+ {
+  "code": "MC",
+  "name": "Monaco",
+  "population": 38087
  },
  {
   "code": "MN",
@@ -503,6 +658,11 @@
   "code": "ME",
   "name": "Montenegro",
   "population": 626233
+ },
+ {
+  "code": "MS",
+  "name": "Montserrat",
+  "population": 4328
  },
  {
   "code": "MA",
@@ -523,6 +683,11 @@
   "code": "NA",
   "name": "Namibia",
   "population": 3153246
+ },
+ {
+  "code": "NR",
+  "name": "Nauru",
+  "population": 12101
  },
  {
   "code": "NP",
@@ -560,6 +725,11 @@
   "population": 242431832
  },
  {
+  "code": "NU",
+  "name": "Niue",
+  "population": 1822
+ },
+ {
   "code": "KP",
   "name": "North Korea",
   "population": 26633691
@@ -568,6 +738,11 @@
   "code": "MK",
   "name": "North Macedonia",
   "population": 1804063
+ },
+ {
+  "code": "MP",
+  "name": "Northern Mariana Islands",
+  "population": 42914
  },
  {
   "code": "NO",
@@ -583,6 +758,11 @@
   "code": "PK",
   "name": "Pakistan",
   "population": 259299791
+ },
+ {
+  "code": "PW",
+  "name": "Palau",
+  "population": 17614
  },
  {
   "code": "PA",
@@ -645,6 +825,51 @@
   "population": 14889693
  },
  {
+  "code": "BL",
+  "name": "Saint Barthelemy",
+  "population": 11550
+ },
+ {
+  "code": "SH",
+  "name": "Saint Helena",
+  "population": 5147
+ },
+ {
+  "code": "KN",
+  "name": "Saint Kitts & Nevis",
+  "population": 46992
+ },
+ {
+  "code": "LC",
+  "name": "Saint Lucia",
+  "population": 180488
+ },
+ {
+  "code": "MF",
+  "name": "Saint Martin",
+  "population": 23898
+ },
+ {
+  "code": "PM",
+  "name": "Saint Pierre & Miquelon",
+  "population": 5513
+ },
+ {
+  "code": "WS",
+  "name": "Samoa",
+  "population": 220528
+ },
+ {
+  "code": "SM",
+  "name": "San Marino",
+  "population": 33605
+ },
+ {
+  "code": "ST",
+  "name": "Sao Tome & Principe",
+  "population": 244994
+ },
+ {
   "code": "SA",
   "name": "Saudi Arabia",
   "population": 35165787
@@ -660,9 +885,24 @@
   "population": 6641964
  },
  {
+  "code": "SC",
+  "name": "Seychelles",
+  "population": 134959
+ },
+ {
   "code": "SL",
   "name": "Sierra Leone",
   "population": 8996745
+ },
+ {
+  "code": "SG",
+  "name": "Singapore",
+  "population": 5905748
+ },
+ {
+  "code": "SX",
+  "name": "Sint Maarten",
+  "population": 44447
  },
  {
   "code": "SK",
@@ -708,6 +948,11 @@
   "code": "LK",
   "name": "Sri Lanka",
   "population": 23348315
+ },
+ {
+  "code": "VC",
+  "name": "St. Vincent & Grenadines",
+  "population": 99245
  },
  {
   "code": "PS",
@@ -770,6 +1015,11 @@
   "population": 9930918
  },
  {
+  "code": "TO",
+  "name": "Tonga",
+  "population": 103291
+ },
+ {
   "code": "TT",
   "name": "Trinidad and Tobago",
   "population": 1513268
@@ -788,6 +1038,21 @@
   "code": "TM",
   "name": "Turkmenistan",
   "population": 7736632
+ },
+ {
+  "code": "TC",
+  "name": "Turks and Caicos",
+  "population": 47148
+ },
+ {
+  "code": "TV",
+  "name": "Tuvalu",
+  "population": 9362
+ },
+ {
+  "code": "VI",
+  "name": "U.S. Virgin Islands",
+  "population": 83400
  },
  {
   "code": "UG",
@@ -838,6 +1103,11 @@
   "code": "VN",
   "name": "Vietnam",
   "population": 102177431
+ },
+ {
+  "code": "WF",
+  "name": "Wallis & Futuna",
+  "population": 11113
  },
  {
   "code": "EH",

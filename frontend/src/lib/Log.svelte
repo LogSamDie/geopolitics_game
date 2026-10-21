@@ -8,14 +8,15 @@
   let { events }: Props = $props()
 
   let list: HTMLOListElement
+  let following = true // keep showing the newest entry unless the reader scrolled up
 
   $effect(() => {
     void events.length
-    list.scrollTop = list.scrollHeight
+    if (following) list.scrollTop = list.scrollHeight
   })
 </script>
 
-<ol bind:this={list}>
+<ol bind:this={list} onscroll={() => (following = list.scrollTop + list.clientHeight >= list.scrollHeight - 40)}>
   {#each events as event (event.seq)}
     <li class={event.kind}>
       {event.text}
@@ -23,7 +24,7 @@
         <em>{event.reason}</em>
       {/if}
       {#if event.dice}
-        <span class="dice"><Dice pairs={event.dice} /></span>
+        <div class="dice"><Dice pairs={event.dice} /></div>
       {/if}
     </li>
   {/each}
@@ -37,6 +38,7 @@
     overflow-y: auto;
     scrollbar-width: thin;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.35rem;
     align-content: start;
     font-size: 13px;

@@ -83,6 +83,10 @@ class State(BaseModel):
     seq: int = 0  # number of events logged so far
 
 
+def soldiers(n: int) -> str:
+    return f"{n} soldier{'' if n == 1 else 's'}"
+
+
 def conquest_bonus(value: int) -> int:
     """Soldiers gained for conquering a country: max(2, value / 2), rounded down."""
     return max(2, value // 2)
@@ -146,36 +150,36 @@ class Game:
 
     # -- moves ---------------------------------------------------------------------------------
 
-    def reinforce(self, code: str, soldiers: int, reason: str | None = None) -> None:
+    def reinforce(self, code: str, count: int, reason: str | None = None) -> None:
         """Place some of this turn's new soldiers in one of your countries."""
         self._require("reinforce")
         country = self._own(code)
-        if not 1 <= soldiers <= self.turn.reinforcements:
+        if not 1 <= count <= self.turn.reinforcements:
             raise RuleError(f"You have {self.turn.reinforcements} soldiers left to place")
-        country.soldiers += soldiers
-        self.turn.reinforcements -= soldiers
+        country.soldiers += count
+        self.turn.reinforcements -= count
         if self.turn.reinforcements == 0:
             self.turn.phase = "action"
         self._log(
             "reinforced",
-            f"{self.current_player.name} places {soldiers} soldiers in {country.name}.",
+            f"{self.current_player.name} places {soldiers(count)} in {country.name}.",
             [country],
             reason,
         )
 
-    def transfer(self, source: str, target: str, soldiers: int, reason: str | None = None) -> None:
+    def transfer(self, source: str, target: str, count: int, reason: str | None = None) -> None:
         """Move soldiers between two of your countries while no attack is in progress."""
         self._require("action")
         src, dst = self._own(source), self._own(target)
         if src is dst:
             raise RuleError("Choose two different countries")
-        if soldiers < 1 or src.soldiers - soldiers < 1:
+        if count < 1 or src.soldiers - count < 1:
             raise RuleError(f"{src.name} must keep at least 1 soldier")
-        src.soldiers -= soldiers
-        dst.soldiers += soldiers
+        src.soldiers -= count
+        dst.soldiers += count
         self._log(
             "transferred",
-            f"{self.current_player.name} moves {soldiers} soldiers from {src.name} to {dst.name}.",
+            f"{self.current_player.name} moves {soldiers(count)} from {src.name} to {dst.name}.",
             [src, dst],
             reason,
         )
