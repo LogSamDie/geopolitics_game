@@ -155,7 +155,7 @@ wheels = [
 ]
 
 [[package]]
-name = "geopolitics"
+name = "geopoly"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

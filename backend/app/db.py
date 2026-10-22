@@ -19,3 +19,4 @@ games = database["games"]
 async def create_indexes() -> None:
     await users.create_index("username", unique=True)
     await games.create_index("owner")
+    await sessions.create_index("created", expireAfterSeconds=30 * 24 * 3600)

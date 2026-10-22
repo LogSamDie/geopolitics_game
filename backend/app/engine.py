@@ -14,6 +14,17 @@ from pydantic import BaseModel
 DIE_SIDES = 6
 REINFORCEMENTS_PER_COUNTRY = 2
 COUNTRIES_PER_GAME = 10
+NPC_NAMES = (
+    "Marshal Tundra",
+    "General Isthmus",
+    "Admiral Atoll",
+    "Colonel Steppe",
+    "Baroness Delta",
+    "President Mesa",
+    "Commodore Fjord",
+    "Chancellor Savanna",
+    "Generalissimo Oasis",
+)
 
 Phase = Literal["reinforce", "action", "attack", "over"]
 Kind = Literal[
@@ -63,7 +74,7 @@ class Turn(BaseModel):
     reinforcements: int = 0  # soldiers still to place this turn
     # This turn's one attack once launched; it is fought while the phase is "attack".
     attack: Attack | None = None
-    winner: str | None = None  # set when the phase is "over"; None if the human was eliminated
+    winner: str | None = None  # set when the phase is "over"
 
 
 class Event(BaseModel):
@@ -110,15 +121,15 @@ class Game:
             raise RuleError(f"A game needs exactly {COUNTRIES_PER_GAME} countries")
         rng = rng or random.Random()
         players = [Player(id="p0", name=human, npc=False)]
-        for i, country in enumerate(countries[1:], start=1):
-            players.append(Player(id=f"p{i}", name=country.name, npc=True))
+        for i, name in enumerate(NPC_NAMES, start=1):
+            players.append(Player(id=f"p{i}", name=name, npc=True))
         for player, country in zip(players, countries, strict=True):
             country.owner = player.id
             country.soldiers = country.value
         rng.shuffle(players)  # the game randomly decides who goes first
         turn = Turn(player=players[0].id, round=1, phase="action")
         game = cls(State(players=players, countries=countries, turn=turn), rng)
-        game._log("started", f"The game begins. {players[0].name} goes first.", countries)
+        game._log("started", f"{players[0].name} goes first.", countries)
         game._start_turn(players[0], 1)
         return game
 
@@ -198,7 +209,7 @@ class Game:
         self.turn.phase = "attack"
         self._log(
             "attacked",
-            f"{src.name} attacks {dst.name}!",
+            f"{self.current_player.name} attacks {dst.name} from {src.name}.",
             reason=reason,
         )
 
@@ -229,6 +240,12 @@ class Game:
             self._log(
                 "repelled", f"{src.name} is down to 1 soldier: the attack on {dst.name} fails."
             )
+
+    def fight(self) -> None:
+        """Roll until the attack ends."""
+        self._require("attack")
+        while self.turn.phase == "attack":
+            self.roll()
 
     def stop(self, reason: str | None = None) -> None:
         """Withdraw from the attack, which also ends the turn."""
@@ -273,19 +290,15 @@ class Game:
             f"{self.current_player.name} conquers {dst.name} and gains {bonus} soldiers.",
             [dst],
         )
-        eliminated = not self.countries_of(loser.id)
-        if eliminated:
+        if not self.countries_of(loser.id):
             self._log("eliminated", f"{loser.name} has no countries left and is out of the game.")
         if len(self.countries_of(self.turn.player)) == len(self.state.countries):
             self._end_game(self.current_player)
-        elif eliminated and not loser.npc:
-            self._end_game(None)
 
-    def _end_game(self, winner: Player | None) -> None:
+    def _end_game(self, winner: Player) -> None:
         self.turn.phase = "over"
-        self.turn.winner = winner.id if winner else None
-        text = f"{winner.name} has conquered the world!" if winner else "The NPCs rule the world."
-        self._log("over", text)
+        self.turn.winner = winner.id
+        self._log("over", f"{winner.name} wins.")
 
     def _next_turn(self) -> None:
         players = self.state.players

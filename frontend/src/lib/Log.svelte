@@ -12,6 +12,7 @@
 
   $effect(() => {
     void events.length
+    if (list.scrollHeight - list.clientHeight <= 40) following = true // nothing left to scroll
     if (following) list.scrollTop = list.scrollHeight
   })
 </script>

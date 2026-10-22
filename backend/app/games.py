@@ -45,6 +45,10 @@ class Roll(BaseModel):
     kind: Literal["roll"]
 
 
+class Fight(BaseModel):
+    kind: Literal["fight"]
+
+
 class Stop(BaseModel):
     kind: Literal["stop"]
 
@@ -54,7 +58,7 @@ class EndTurn(BaseModel):
 
 
 Command = Annotated[
-    Reinforce | Transfer | Attack | Roll | Stop | EndTurn, Field(discriminator="kind")
+    Reinforce | Transfer | Attack | Roll | Fight | Stop | EndTurn, Field(discriminator="kind")
 ]
 
 
@@ -124,7 +128,7 @@ async def list_games(user: Annotated[User, Depends(current_user)]) -> list[GameS
 
 
 @router.get("/games/{game_id}")
-async def get_game(game_id: str, after: Annotated[int, Query(ge=0)] = 0) -> GameView:
+async def get_game(game_id: str, after: Annotated[int, Query(ge=0, le=ALL_EVENTS)] = 0) -> GameView:
     """Anyone with the link may watch. Returns the events after sequence number `after`."""
     # events[i].seq == i + 1, so skipping `after` entries yields exactly the events after it.
     doc = await load(game_id, {"events": {"$slice": [after, ALL_EVENTS]}})
@@ -170,6 +174,8 @@ def apply(game: Game, command: Command) -> None:
             game.attack(command.source, command.target)
         case Roll():
             game.roll()
+        case Fight():
+            game.fight()
         case Stop():
             game.stop()
         case EndTurn():

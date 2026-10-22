@@ -10,7 +10,7 @@ export class Playback {
   events = $state<GameEvent[]>([])
   shown = $state(0)
   fast = $state(false)
-  private timer: ReturnType<typeof setTimeout> | undefined
+  private timer = $state<ReturnType<typeof setTimeout>>()
 
   readonly log = $derived(this.events.slice(0, this.shown))
   // The first event lists every country; each later one lists those it changed.
@@ -39,9 +39,15 @@ export class Playback {
     return this.events.at(-1)?.turn.phase === 'over'
   }
 
+  /** A pause is under way, including the one after the newest event. */
+  get running(): boolean {
+    return this.timer !== undefined
+  }
+
   add(events: GameEvent[]): void {
     const fresh = events.filter((e) => e.seq > this.seq)
-    if (fresh.length === 0) return
+    // A batch that skips ahead (another device moved) waits for the poll, which brings all of it.
+    if (fresh[0]?.seq !== this.seq + 1) return
     this.events.push(...fresh)
     this.play()
   }
@@ -55,9 +61,19 @@ export class Playback {
     this.timer = undefined
   }
 
-  replay(): void {
-    this.shown = 1
+  /** The replay button: stop a running replay, else go on from here, or from the top at the end. */
+  toggle(): void {
+    const stopping = this.running && this.busy
+    this.pause()
+    if (stopping) return
+    if (!this.busy) this.shown = 0
     this.play()
+  }
+
+  /** Apply a changed speed to the pause under way, without restarting a stopped replay. */
+  retime(): void {
+    const current = this.events[this.shown - 1]
+    if (this.running && current) this.wait(current)
   }
 
   private step(): void {
@@ -67,6 +83,11 @@ export class Playback {
       return
     }
     this.shown += 1
+    this.wait(event)
+  }
+
+  private wait(event: GameEvent): void {
+    clearTimeout(this.timer)
     this.timer = setTimeout(() => this.step(), this.delay(event))
   }
 

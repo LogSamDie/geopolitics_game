@@ -29,6 +29,7 @@
 
 body {
   margin: 0;
+  overflow-wrap: break-word;
 }
 
 h1,
@@ -132,14 +133,15 @@ button:disabled {
   margin-top: 0.5rem;
 }
 
-/* A legend square in a player's colour, as an atlas prints in its margin. */
+/* A square in a player's colour. */
 .swatch {
   display: inline-block;
-  width: 0.65rem;
-  height: 0.65rem;
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 0.2em;
   background: var(--owner);
   border: 1px solid var(--border);
-  vertical-align: -1px;
+  vertical-align: -0.02em; /* centres it on the capitals and small letters alike */
 }
 
 @keyframes stamp {
@@ -158,6 +160,10 @@ button:disabled {
   input,
   select {
     font-size: 16px; /* below this iOS zooms the page into a focused field */
+  }
+
+  button {
+    min-height: 2.5rem;
   }
 }
 

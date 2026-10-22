@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import type { Pair } from './types'
 
   interface Props {
@@ -6,6 +7,7 @@
     live?: boolean // animate the roll
   }
   let { pairs, live = false }: Props = $props()
+  const animate = untrack(() => live) // a change of speed must not re-roll the dice on screen
 
   // Pips as cells of a 3x3 grid numbered 0-8 row by row; the index is the face value.
   const PIPS = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]]
@@ -19,7 +21,7 @@
 {/snippet}
 
 <!-- One column per pair, the attacker's die above the defender's. A losing die fades. -->
-<div class="dice" class:live>
+<div class="dice" class:live={animate}>
   {#each pairs as [a, d], i (i)}
     <span class="pair" style:--i={i}>{@render die(a, a < d, false)}{@render die(d, d < a, true)}</span>
   {/each}

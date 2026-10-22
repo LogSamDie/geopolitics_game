@@ -22,15 +22,21 @@ def test_win_probability_matches_simulation() -> None:
         assert abs(npc.win_probability(attackers, defenders) - wins) < 0.03
 
 
-def test_win_probability_edges_and_scaling() -> None:
+def test_win_probability_above_small_armies_matches_simulation() -> None:
+    rng = random.Random(11)
+    wins = sum(simulate(100, 90, rng) for _ in range(1000)) / 1000
+    assert abs(npc.win_probability(100, 90) - wins) < 0.05
+
+
+def test_win_probability_edges() -> None:
     assert npc.win_probability(1, 5) == 0.0
     assert npc.win_probability(5, 0) == 1.0
     assert npc.win_probability(2, 1) == 0.5  # one die each, ties re-rolled
     assert npc.win_probability(21, 20) == pytest.approx(0.5)  # 20 dice on each side
     assert npc.win_probability(3, 3) < npc.win_probability(4, 3) < npc.win_probability(5, 3)
-    assert npc.win_probability(1000, 10) > 0.99  # scaled down, not computed exactly
+    assert npc.win_probability(16, 15) == 0.5  # exactly even, so an NPC attacks
+    assert npc.win_probability(1000, 10) > 0.99
     assert npc.win_probability(10, 1000) < 0.01
-    assert abs(npc.win_probability(41, 41) - npc.win_probability(40, 40)) < 0.01
 
 
 def test_npc_places_all_reinforcements_on_its_largest_army() -> None:
@@ -53,7 +59,7 @@ def test_npc_attacks_the_target_with_the_best_expected_gain() -> None:
     npc.play_turn(game)
     attacked = next(e for e in game.events if e.kind == "attacked")
     assert attacked.turn.attack is not None and attacked.turn.attack.target == "C2"
-    assert attacked.reason == "C2 is the best target: 9 vs 2 soldiers is 98% to win 4 soldiers."
+    assert attacked.reason == "C2 is the best target: 9 vs 2 is 98% to win 4 soldiers."
 
 
 def test_npc_prefers_a_viable_attack_over_a_richer_long_shot() -> None:
@@ -65,6 +71,30 @@ def test_npc_prefers_a_viable_attack_over_a_richer_long_shot() -> None:
     npc.play_turn(game)
     attacked = next(e for e in game.events if e.kind == "attacked")
     assert attacked.turn.attack is not None and attacked.turn.attack.target == "C3"
+
+
+def test_npc_moves_half_its_army_into_a_conquest() -> None:
+    game = new_game(values=[9, 9, 1, 9, 9, 9, 9, 9, 9, 9])
+    give_turn(game, "p1")
+    rig(game, 6, 1)
+    npc.play_turn(game)
+    moved = game.events[-2]
+    assert moved.kind == "transferred"
+    assert moved.reason is not None and "Garrisons" in moved.reason
+    assert [c.soldiers for c in moved.countries] == [5, 6]  # 9 - 4, and the bonus of 2 + 4
+
+
+def test_games_against_a_passive_human_finish() -> None:
+    for seed in range(40):
+        rng = random.Random(seed)
+        game = new_game([rng.randint(1, 9) for _ in range(10)], seed=seed)
+        while game.turn.phase != "over" and game.turn.round < 500:
+            npc.run(game)
+            if game.turn.phase == "reinforce":
+                game.reinforce(game.countries_of(game.human.id)[0].code, game.turn.reinforcements)
+            if game.turn.phase == "action":
+                game.end_turn()
+        assert game.turn.phase == "over", f"seed {seed} still running at round 500"
 
 
 def test_npc_skips_and_says_why_when_every_attack_is_a_long_shot() -> None:
@@ -103,10 +133,16 @@ def test_run_plays_every_npc_until_the_human_or_the_end() -> None:
     assert all(e.reason for e in decisions), "every NPC turn is justified"
 
 
-def test_run_stops_when_the_human_is_eliminated() -> None:
+def test_run_plays_on_to_an_npc_winner_after_the_human_is_eliminated() -> None:
     game = new_game()
     game.country("C0").soldiers, game.country("C1").soldiers = 1, 10
     give_turn(game, "p1")
     rig(game, 6, 1)
+    game.attack("C1", "C0")
+    game.roll()
+    assert not game.countries_of(game.human.id)
+    game.rng = random.Random(1)
+    game.end_turn()
     npc.run(game)
-    assert (game.turn.phase, game.turn.winner) == ("over", None)
+    assert game.turn.phase == "over"
+    assert game.turn.winner is not None and game.player(game.turn.winner).npc

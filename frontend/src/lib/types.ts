@@ -91,5 +91,6 @@ export type Command =
   | { kind: 'transfer'; source: string; target: string; soldiers: number }
   | { kind: 'attack'; source: string; target: string }
   | { kind: 'roll' }
+  | { kind: 'fight' }
   | { kind: 'stop' }
   | { kind: 'end_turn' }

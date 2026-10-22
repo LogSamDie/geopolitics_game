@@ -19,21 +19,33 @@
   $effect(() => {
     if (user === null) return
     api.countries().then((c) => (countries = c))
-    api.games().then((g) => (games = g))
+    api.games().then(
+      (g) => (games = g),
+      (e) => {
+        error = message(e) // the session has ended: back to the login form
+        onuser(null)
+      },
+    )
   })
 
+  let busy = false // a double click must not send the request twice
+
   async function attempt(action: () => Promise<unknown>): Promise<void> {
+    if (busy) return
+    busy = true
     error = ''
     try {
       await action()
     } catch (e) {
       error = message(e)
+    } finally {
+      busy = false
     }
   }
 
   const login = () => attempt(async () => onuser(await api.login(username, password)))
   const register = () => attempt(async () => onuser(await api.register(username, password)))
-  const logout = () => attempt(async () => (await api.logout(), onuser(null)))
+  const logout = () => attempt(async () => (await api.logout(), (password = ''), onuser(null)))
   const start = () => attempt(async () => navigate(`/games/${(await api.createGame(chosen)).id}`))
 
   function describe(game: GameSummary): string {
@@ -43,13 +55,7 @@
 </script>
 
 <main>
-  <div>
-    <h1>Geopolitics</h1>
-    <p>
-      Conquer the world one country at a time. You may attack once a turn, and from the second round every country you
-      hold brings two new soldiers.
-    </p>
-  </div>
+  <h1>Geopoly</h1>
 
   {#if user === null}
     <form onsubmit={(e) => (e.preventDefault(), login())}>
@@ -65,10 +71,10 @@
           title="Letters, digits, _ . -"
         />
       </label>
-      <label>Password <input type="password" bind:value={password} required minlength="6" /></label>
+      <label>Password <input type="password" bind:value={password} required minlength="6" maxlength="128" /></label>
       <div class="row">
         <button class="primary" type="submit">Log in</button>
-        <button type="button" onclick={register}>Sign up</button>
+        <button type="button" onclick={(e) => e.currentTarget.form?.reportValidity() && register()}>Sign up</button>
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     </form>
@@ -85,7 +91,6 @@
       </label>
       <div class="row">
         <button class="primary" onclick={start}>Start</button>
-        <span class="muted">Nine opponents are drawn at random from the rest of the world.</span>
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     </section>
@@ -93,7 +98,7 @@
     <section>
       <h2>Your games</h2>
       {#if games.length === 0}
-        <p class="muted">None yet. Pick a country above to start one.</p>
+        <p class="muted">None yet.</p>
       {/if}
       <ul>
         {#each games as game (game.id)}
@@ -137,7 +142,7 @@
     gap: 0.35rem;
   }
 
-  /* A table of contents: title, dotted leader, then the state of play. */
+  /* Country, dotted line, then the state of the game. */
   li {
     display: flex;
     align-items: baseline;
@@ -152,8 +157,13 @@
     transform: translateY(-0.3em);
   }
 
+  li a {
+    white-space: nowrap;
+  }
+
   li span {
     order: 2;
     color: var(--muted);
+    text-align: right;
   }
 </style>

@@ -54,7 +54,7 @@ def test_setup_gives_each_player_its_country_at_full_value() -> None:
     for player in game.state.players:
         [owned] = game.countries_of(player.id)
         assert owned.soldiers == owned.value
-        assert player.npc == (player.name == owned.code)
+        assert player.npc == (player.name != "alice")
     assert [e.kind for e in game.events] == ["started", "turn"]
     assert len(game.events[0].countries) == 10
     assert game.turn.round == 1
@@ -221,6 +221,21 @@ def test_dice_are_paired_in_order_and_the_higher_roll_wins() -> None:
     assert game.turn.phase == "attack"
 
 
+def test_fight_rolls_until_the_attack_ends() -> None:
+    game = human_turn(new_game())
+    game.country("C1").soldiers = 5
+    rig(game, 3, 3, 6, 1)  # a tied pair, then a win, in turn
+    game.attack("C0", "C1")
+    game.fight()
+    assert game.country("C1").owner == game.human.id
+    kinds = [e.kind for e in game.events]
+    assert kinds.count("rolled") >= 2
+    assert kinds[-1] == "eliminated"
+    assert game.turn.phase == "action"
+    with pytest.raises(RuleError, match="action phase"):
+        game.fight()
+
+
 def test_a_tie_kills_nobody() -> None:
     game = human_turn(new_game())
     game.country("C1").soldiers = 3
@@ -302,7 +317,7 @@ def test_conquering_all_ten_countries_wins() -> None:
         game.end_turn()
 
 
-def test_losing_the_last_country_ends_the_game_without_a_winner() -> None:
+def test_the_npcs_play_on_after_the_human_is_eliminated() -> None:
     game = new_game()
     game.country("C0").soldiers = 1
     give_turn(game, "p1")
@@ -310,8 +325,10 @@ def test_losing_the_last_country_ends_the_game_without_a_winner() -> None:
     rig(game, 6, 1)
     game.attack("C1", "C0")
     game.roll()
-    assert [e.kind for e in game.events[-3:]] == ["conquered", "eliminated", "over"]
-    assert (game.turn.phase, game.turn.winner) == ("over", None)
+    assert [e.kind for e in game.events[-2:]] == ["conquered", "eliminated"]
+    assert (game.turn.phase, game.turn.winner) == ("action", None)
+    game.end_turn()
+    assert game.turn.player != game.human.id
 
 
 def test_an_npc_taking_the_human_last_country_to_complete_the_world_wins_once() -> None:
@@ -326,7 +343,7 @@ def test_an_npc_taking_the_human_last_country_to_complete_the_world_wins_once() 
     game.roll()
     assert [e.kind for e in game.events[-3:]] == ["conquered", "eliminated", "over"]
     assert game.turn.winner == "p1"
-    assert game.events[-1].text == "C1 has conquered the world!"
+    assert game.events[-1].text == f"{game.player('p1').name} wins."
     assert [e.kind for e in game.events].count("over") == 1
 
 

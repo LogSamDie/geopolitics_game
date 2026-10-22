@@ -40,6 +40,7 @@
         [-170, -56],
         [180, 78],
       ],
+      fitBoundsOptions: { padding: 16 }, // room for tags at the edge of the world
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -54,21 +55,21 @@
       ([world]) => {
         created.addSource('world', { type: 'geojson', data: world, promoteId: 'code' })
         created.addSource('line', { type: 'geojson', data: EMPTY })
-        // Washes: countries in the game take their owner's colour from feature state, the rest stay paper.
+        // Countries in the game take their owner's colour from feature state.
         created.addLayer({
           id: 'land',
           type: 'fill',
           source: 'world',
           paint: { 'fill-color': ['coalesce', ['feature-state', 'color'], css('--land')] },
         })
-        // Engraved hairline on every border and coast.
+        // Every border and coast.
         created.addLayer({
           id: 'borders',
           type: 'line',
           source: 'world',
           paint: { 'line-color': css('--border'), 'line-width': 0.6 },
         })
-        // Marked countries get a double ink line, the atlas convention for a boundary of note.
+        // A double line around marked countries.
         created.addLayer({
           id: 'marked',
           type: 'line',
@@ -79,7 +80,7 @@
             'line-gap-width': 1.4,
           },
         })
-        // A dashed campaign line between two marked countries.
+        // A dashed line between two marked countries.
         created.addLayer({
           id: 'line',
           type: 'line',
@@ -152,7 +153,7 @@
     height: 100%;
   }
 
-  /* A paper tag pasted on the plate: the name in small caps, the count in the owner's colour. */
+  /* The name in small caps, the count in the owner's colour. */
   .marker {
     display: inline-flex;
     align-items: center;
@@ -197,5 +198,17 @@
     font-size: 12px;
     font-weight: 700;
     animation: stamp 0.25s ease-out;
+  }
+
+  /* On a phone the names would bury the map; the country list carries them. */
+  @media (max-width: 800px), (max-height: 500px) {
+    .name {
+      display: none;
+    }
+
+    .marker {
+      padding: 0;
+      border: 0;
+    }
   }
 </style>

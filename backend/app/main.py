@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await db.client.close()
 
 
-app = FastAPI(title="Geopolitics", lifespan=lifespan)
+app = FastAPI(title="Geopoly", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(auth.router)
 app.include_router(games.router)
@@ -35,4 +35,5 @@ def spa(path: str) -> FileResponse:
     file = (STATIC / path).resolve()
     if file.is_file() and file.is_relative_to(STATIC):
         return FileResponse(file)
-    return FileResponse(STATIC / "index.html")
+    # Always revalidated, so a new build is picked up; the assets it names have hashed filenames.
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})

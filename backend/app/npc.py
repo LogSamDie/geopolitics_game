@@ -1,55 +1,31 @@
 """How the non-player characters play.
 
 Every NPC uses the same strategy: put its reinforcements on its largest army, attack the target
-with the best expected gain among those it has at least even odds against, and withdraw from an
-attack once the odds turn bad. Every decision carries a one-line justification for the game log.
+with the best expected gain among those it has at least even odds against, withdraw from an
+attack once the odds turn bad, and move half its army into a country it conquers. Every decision
+carries a one-line justification for the game log.
 """
 
 from functools import cache
 from math import comb
 from typing import NamedTuple
 
-from .engine import DIE_SIDES, Country, Game, conquest_bonus, dice_count
+from .engine import Country, Game, conquest_bonus
 
 ATTACK_THRESHOLD = 0.5  # minimum chance of winning before an NPC launches an attack
 STOP_THRESHOLD = 0.25  # an NPC withdraws once its chance of winning drops below this
-MAX_ARMY = 40  # larger armies are scaled down before computing odds, keeping the table small
-
-FACES = range(1, DIE_SIDES + 1)
-P_LOSE = sum(a < d for a in FACES for d in FACES) / DIE_SIDES**2  # chance one side loses a pair
-P_TIE = 1 - 2 * P_LOSE
 
 
 @cache
 def win_probability(attackers: int, defenders: int) -> float:
     """Chance that an attack fought to the end conquers the defender.
 
-    Exact for armies up to MAX_ARMY; larger ones are scaled down proportionally, which keeps the
-    balance of forces while bounding the recursion. Rounds where every pair ties leave the state
-    unchanged, which the division at the end accounts for.
+    Ties aside, every pair of dice is a coin flip that costs one side a soldier, and the attack
+    is settled within attackers + defenders - 2 of them. It wins if the defender loses
+    `defenders` of those flips.
     """
-    if defenders == 0:
-        return 1.0
-    if attackers < 2:
-        return 0.0
-    scale = max(attackers, defenders) / MAX_ARMY
-    if scale > 1:
-        return win_probability(max(2, round(attackers / scale)), max(1, round(defenders / scale)))
-    n = dice_count(attackers, defenders)
-    total = 0.0
-    for lost_a in range(n + 1):
-        for lost_d in range(n + 1 - lost_a):
-            ties = n - lost_a - lost_d
-            if ties == n:
-                continue
-            p = (
-                comb(n, lost_a)
-                * comb(n - lost_a, lost_d)
-                * P_LOSE ** (lost_a + lost_d)
-                * P_TIE**ties
-            )
-            total += p * win_probability(attackers - lost_a, defenders - lost_d)
-    return total / (1 - P_TIE**n)
+    flips = attackers + defenders - 2
+    return sum(comb(flips, k) for k in range(defenders, flips + 1)) / (1 << flips)
 
 
 class Option(NamedTuple):
@@ -92,7 +68,7 @@ def play_turn(game: Game) -> None:
         source.code,
         target.code,
         reason=f"{target.name} is the best target: {source.soldiers} vs {target.soldiers} "
-        f"soldiers is {odds:.0%} to win {conquest_bonus(target.value)} soldiers.",
+        f"is {odds:.0%} to win {conquest_bonus(target.value)} soldiers.",
     )
     while game.turn.phase == "attack":
         odds = win_probability(source.soldiers, target.soldiers)
@@ -104,6 +80,13 @@ def play_turn(game: Game) -> None:
             return
         game.roll()
     if game.turn.phase == "action":
+        if target.owner == me and source.soldiers >= 2:
+            game.transfer(
+                source.code,
+                target.code,
+                source.soldiers // 2,
+                reason=f"Garrisons {target.name} so it is not retaken at once.",
+            )
         game.end_turn()
 
 

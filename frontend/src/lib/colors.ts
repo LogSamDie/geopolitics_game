@@ -1,6 +1,6 @@
 import type { Player } from './types'
 
-// Hand-tinted atlas washes. The human is always carmine; the NPCs take the rest in turn order.
+// The human is always the first colour; the NPCs take the rest in turn order.
 const PALETTE = [
   '#a4343e',
   '#dcbd6b',
@@ -20,5 +20,5 @@ export function colorOf(players: Player[], playerId: string): string {
   return PALETTE[index] ?? '#777'
 }
 
-/** Text that stays legible on an owner colour: paper on carmine, ink on every wash. */
+/** Text that stays legible on an owner colour: light on the human's, dark on the others. */
 export const textOn = (color: string): string => (color === PALETTE[0] ? 'var(--panel)' : 'var(--ink)')

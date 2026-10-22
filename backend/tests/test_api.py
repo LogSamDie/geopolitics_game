@@ -94,6 +94,7 @@ def test_play_a_game_through_the_api(client: TestClient) -> None:
     url = f"/api/games/{game_id}/commands"
     assert client.post(url, json={"kind": "roll"}).status_code == 422  # not attacking
     assert client.post(url, json={"kind": "bogus"}).status_code == 422
+    assert client.post(url, json={"kind": "fight"}).status_code == 422  # not attacking
     assert (
         client.post(url, json={"kind": "attack", "source": "ZA", "target": "ZA"}).status_code == 422
     )

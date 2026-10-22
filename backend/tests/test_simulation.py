@@ -50,10 +50,7 @@ class Checker:
         turn = game.turn
         if turn.phase == "over":
             assert game.events[-1].kind == "over"
-            if turn.winner is None:
-                assert not game.countries_of(game.human.id)
-            else:
-                assert all(c.owner == turn.winner for c in game.state.countries)
+            assert all(c.owner == turn.winner for c in game.state.countries)
             return
         assert game.countries_of(turn.player), "the player to move still has a country"
         if turn.phase == "attack":
