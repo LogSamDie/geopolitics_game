@@ -6,7 +6,6 @@ attack once the odds turn bad, and move half its army into a country it conquers
 carries a one-line justification for the game log.
 """
 
-from functools import cache
 from math import comb
 from typing import NamedTuple
 
@@ -16,7 +15,6 @@ ATTACK_THRESHOLD = 0.5  # minimum chance of winning before an NPC launches an at
 STOP_THRESHOLD = 0.25  # an NPC withdraws once its chance of winning drops below this
 
 
-@cache
 def win_probability(attackers: int, defenders: int) -> float:
     """Chance that an attack fought to the end conquers the defender.
 

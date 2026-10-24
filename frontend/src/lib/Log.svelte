@@ -1,11 +1,12 @@
 <script lang="ts">
   import Dice from './Dice.svelte'
-  import type { GameEvent } from './types'
+  import type { GameEvent, Player } from './types'
 
   interface Props {
     events: GameEvent[]
+    players: Player[]
   }
-  let { events }: Props = $props()
+  let { events, players }: Props = $props()
 
   let list: HTMLOListElement
   let following = true // keep showing the newest entry unless the reader scrolled up
@@ -25,7 +26,7 @@
         <em>{event.reason}</em>
       {/if}
       {#if event.dice}
-        <div class="dice"><Dice pairs={event.dice} /></div>
+        <div class="dice"><Dice roll={event} {players} /></div>
       {/if}
     </li>
   {/each}

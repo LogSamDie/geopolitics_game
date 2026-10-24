@@ -54,11 +54,12 @@
   const to = $derived(target === null ? undefined : playback?.countries[target])
   const limit = $derived(turn?.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
   const held = $derived(Object.values(playback?.countries ?? {}).filter((c) => c.owner === human?.id))
+  const out = $derived(owner && held.length === 0 && turn?.phase !== 'over')
   const canMove = $derived(held.length > 1 && held.some((c) => c.soldiers > 1))
   const validAmount = $derived(Number.isInteger(amount) && amount >= 1 && amount <= limit)
 
   // The dice stay up from the attack until something unrelated happens.
-  const QUIET: Kind[] = ['turn', 'reinforced', 'transferred', 'skipped']
+  const QUIET: Kind[] = ['turn', 'reinforced', 'transferred', 'skipped', 'over']
   const inBattle = $derived(turn?.attack != null && last !== undefined && !QUIET.includes(last.kind))
   const roll = $derived(
     playback?.log.slice(playback.log.findLastIndex((e) => e.kind === 'attacked')).findLast((e) => e.kind === 'rolled'),
@@ -79,7 +80,7 @@
     error = ''
   })
 
-  // Fast-forward speeds up the NPC moves until the player's next turn.
+  // Fast-forward lasts until the player's next turn.
   $effect(() => {
     if (myTurn && last?.kind === 'turn' && playback) playback.fast = false
   })
@@ -89,12 +90,23 @@
 
   const heading = $derived.by(() => {
     if (!turn) return ''
-    if (turn.phase === 'over') return `${nameOf(turn.winner)} wins`
+    if (turn.phase === 'over') {
+      if (owner && turn.winner === human?.id) return 'You won'
+      return `${owner ? 'You lost. ' : ''}${nameOf(turn.winner)} wins`
+    }
+    if (out) return 'You are out of the game'
     const round = `Round ${turn.round}: `
     if (mine && turn.phase === 'attack') return round + 'your attack'
     if (!myTurn) return round + (mine ? 'your turn' : `${nameOf(turn.player)}'s turn`)
     if (turn.phase === 'reinforce') return round + `place ${soldiers(turn.reinforcements)}`
     return round + (turn.attack ? 'your attack is over' : 'your move')
+  })
+
+  const speedLabel = $derived.by(() => {
+    if (playback?.fast) return 'Normal speed'
+    if (ended || !owner || mine) return 'Fast-forward'
+    if (out) return 'Fast-forward to the end'
+    return playback?.over ? 'Fast-forward' : 'Fast-forward to my turn'
   })
 
   const hint = $derived.by(() => {
@@ -163,10 +175,6 @@
   <div class="layout">
     <header>
       <a class="brand" href="/">Geopoly</a>
-      <label>
-        <input type="checkbox" bind:checked={playback.fast} onchange={() => playback?.retime()} />
-        Fast-forward
-      </label>
       <button class="copy" onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
     </header>
 
@@ -180,7 +188,10 @@
     </div>
 
     <div class="panel">
-      <h3><i class="swatch" style:--owner={colorOf(playback.players, turn.player)}></i> {heading}</h3>
+      <h3 class:result={out || turn.phase === 'over'}>
+        <i class="swatch" style:--owner={colorOf(playback.players, out ? human.id : turn.player)}></i>
+        {heading}
+      </h3>
       {#if inBattle && turn.attack}
         {@const src = playback.countries[turn.attack.source]}
         {@const dst = playback.countries[turn.attack.target]}
@@ -194,13 +205,17 @@
               <b>{side?.soldiers}</b>
             {/each}
           </div>
-          {#if roll?.dice}
-            {#key roll.seq}<Dice pairs={roll.dice} live={!playback.fast} />{/key}
+          {#if roll}
+            {#key roll.seq}<Dice {roll} players={playback.players} live={!playback.fast} />{/key}
           {/if}
         </div>
       {/if}
       {#if last && last.kind !== 'turn' && last.kind !== 'over'}<p>{last.text}</p>{/if}
       {#if last?.reason}<p class="muted"><em>{last.reason}</em></p>{/if}
+      {#if error}<p class="error">{error}</p>{/if}
+      {#if playback.playing}
+        <button class="speed" onclick={() => playback?.toggleSpeed()}>{speedLabel}</button>
+      {/if}
       <fieldset disabled={pending}>
         {#if !owner}
           <p class="muted">
@@ -209,6 +224,8 @@
           </p>
         {:else if hint}
           <p class="muted">{hint}</p>
+        {:else if out}
+          <p class="muted">The others play on. Round {turn.round}: {nameOf(turn.player)}'s turn.</p>
         {/if}
         {#if mine && turn.phase === 'attack' && !playback.over}
           <!-- Locked during the pause after a result, so a double click is one roll. -->
@@ -259,19 +276,19 @@
             </div>
           {/if}
           <div class="row">
-            <button onclick={() => play({ kind: 'end_turn' })}>
+            <!-- Locked too: this button can land under a click meant for the one it replaced. -->
+            <button disabled={playback.running} onclick={() => play({ kind: 'end_turn' })}>
               {turn.attack ? 'End turn' : 'Skip attack and end turn'}
             </button>
           </div>
         {/if}
       </fieldset>
-      {#if error}<p class="error">{error}</p>{/if}
     </div>
 
     {#if ended}
       <div class="replay">
         <button class="toggle" onclick={() => playback?.toggle()}>
-          {playback.running && playback.busy ? 'Stop' : playback.busy ? 'Play' : 'Replay'}
+          {playback.playing ? 'Stop' : playback.busy ? 'Play' : 'Replay'}
         </button>
         <input
           type="range"
@@ -301,7 +318,7 @@
         {/each}
       </section>
 
-      <Log events={playback.log} />
+      <Log events={playback.log} players={playback.players} />
     </aside>
   </div>
 {:else if error}
@@ -331,10 +348,6 @@
     min-height: 2.75rem;
     padding: 0.4rem 1rem;
     border-bottom: 1px solid var(--ink);
-  }
-
-  header label {
-    cursor: pointer;
   }
 
   .brand {
@@ -367,6 +380,8 @@
     background: var(--panel);
     border: 1px solid var(--ink);
     box-shadow: 0 0 0 3px var(--panel);
+    display: flex;
+    flex-direction: column;
   }
 
   .fight {
@@ -397,6 +412,15 @@
 
   .panel p {
     margin: 0.5rem 0 0;
+  }
+
+  .speed {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+  }
+
+  .result {
+    font-size: 20px;
   }
 
   .replay {
@@ -465,10 +489,6 @@
     text-align: left;
   }
 
-  .countries button:disabled {
-    cursor: default;
-  }
-
   .countries button:enabled:hover,
   .countries .current {
     background: var(--paper);
@@ -511,8 +531,6 @@
       width: auto;
       min-height: 10rem; /* so the country list below rarely moves */
       margin: 0;
-      display: flex;
-      flex-direction: column;
       border-width: 1px 0 0;
       box-shadow: none;
     }
@@ -522,12 +540,17 @@
       order: -2;
     }
 
-    fieldset {
+    fieldset,
+    .speed {
       order: -1;
     }
 
     .fight {
       flex-wrap: wrap;
+    }
+
+    .sides {
+      width: 100%;
     }
 
     aside {

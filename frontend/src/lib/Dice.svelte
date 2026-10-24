@@ -1,29 +1,32 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import type { Pair } from './types'
+  import { colorOf, textOn } from './colors'
+  import type { GameEvent, Player } from './types'
 
   interface Props {
-    pairs: Pair[]
+    roll: GameEvent // a "rolled" event: its countries are the attacker and the defender
+    players: Player[]
     live?: boolean // animate the roll
   }
-  let { pairs, live = false }: Props = $props()
+  let { roll, players, live = false }: Props = $props()
   const animate = untrack(() => live) // a change of speed must not re-roll the dice on screen
 
   // Pips as cells of a 3x3 grid numbered 0-8 row by row; the index is the face value.
   const PIPS = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]]
+  const colors = $derived(roll.countries.map((c) => colorOf(players, c.owner)))
 </script>
 
-{#snippet die(value: number, lost: boolean, defender: boolean)}
-  <svg class="die" class:lost class:defender viewBox="0 0 20 20">
+{#snippet die(value: number, lost: boolean, color = '')}
+  <svg class="die" class:lost style:--fill={color} style:--pips={textOn(color)} viewBox="0 0 20 20">
     <rect x="0.5" y="0.5" width="19" height="19" rx="2" />
     {#each PIPS[value] ?? [] as cell}<circle cx={5 + 5 * (cell % 3)} cy={5 + 5 * Math.floor(cell / 3)} r="1.8" />{/each}
   </svg>
 {/snippet}
 
-<!-- One column per pair, the attacker's die above the defender's. A losing die fades. -->
+<!-- One column per pair, the attacker's die above the defender's, in their colours. A losing die fades. -->
 <div class="dice" class:live={animate}>
-  {#each pairs as [a, d], i (i)}
-    <span class="pair" style:--i={i}>{@render die(a, a < d, false)}{@render die(d, d < a, true)}</span>
+  {#each roll.dice ?? [] as [a, d], i (i)}
+    <span class="pair" style:--i={i}>{@render die(a, a < d, colors[0])}{@render die(d, d < a, colors[1])}</span>
   {/each}
 </div>
 
@@ -45,20 +48,12 @@
   }
 
   rect {
-    fill: var(--panel);
+    fill: var(--fill);
     stroke: var(--ink);
   }
 
   circle {
-    fill: var(--ink);
-  }
-
-  .defender rect {
-    fill: var(--ink);
-  }
-
-  .defender circle {
-    fill: var(--panel);
+    fill: var(--pips);
   }
 
   .lost {

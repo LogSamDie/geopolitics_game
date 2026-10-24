@@ -20,10 +20,11 @@ export class Playback {
     this.players = view.state.players
     this.events = view.events
     // Everything up to the player's last own move is shown at once; what followed is played out.
-    // So a new game plays from the beginning, and a reload replays the NPC turns since.
+    // So a new game plays from the beginning, and a reload replays the NPC turns since. A finished
+    // game opens at its end, unless the player was out before ever moving and has yet to see it.
     const human = view.state.players.find((p) => !p.npc)
     const lastMove = view.events.findLastIndex((e) => e.turn.player === human?.id && e.kind !== 'turn')
-    this.shown = this.over ? view.events.length : Math.max(1, lastMove + 1)
+    this.shown = this.over && lastMove >= 0 ? view.events.length : Math.max(1, lastMove + 1)
     this.play()
   }
 
@@ -37,6 +38,11 @@ export class Playback {
 
   get over(): boolean {
     return this.events.at(-1)?.turn.phase === 'over'
+  }
+
+  /** Events are being revealed one after another. */
+  get playing(): boolean {
+    return this.running && this.busy
   }
 
   /** A pause is under way, including the one after the newest event. */
@@ -63,15 +69,16 @@ export class Playback {
 
   /** The replay button: stop a running replay, else go on from here, or from the top at the end. */
   toggle(): void {
-    const stopping = this.running && this.busy
+    const stopping = this.playing
     this.pause()
     if (stopping) return
     if (!this.busy) this.shown = 0
     this.play()
   }
 
-  /** Apply a changed speed to the pause under way, without restarting a stopped replay. */
-  retime(): void {
+  /** Change speed, applied to the pause under way. */
+  toggleSpeed(): void {
+    this.fast = !this.fast
     const current = this.events[this.shown - 1]
     if (this.running && current) this.wait(current)
   }
@@ -92,7 +99,7 @@ export class Playback {
   }
 
   private delay(event: GameEvent): number {
-    if (this.fast) return 150
+    if (this.fast) return this.over ? 75 : 150 // a finished game has no next turn to wait for
     if (event.kind === 'rolled') return 1500
     if (event.reason !== null) return 2000 // time to read an NPC's reasoning
     return 700
