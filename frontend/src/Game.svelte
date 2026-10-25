@@ -6,7 +6,7 @@
   import Log from './lib/Log.svelte'
   import Map from './lib/Map.svelte'
   import { Playback } from './lib/playback.svelte'
-  import type { Command, Kind, User } from './lib/types'
+  import type { Command, Kind, Route, User } from './lib/types'
 
   interface Props {
     id: string
@@ -54,7 +54,9 @@
   const to = $derived(target === null ? undefined : playback?.countries[target])
   const limit = $derived(turn?.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
   const held = $derived(Object.values(playback?.countries ?? {}).filter((c) => c.owner === human?.id))
-  const out = $derived(owner && held.length === 0 && turn?.phase !== 'over')
+  const out = $derived(
+    owner && held.length === 0 && Object.values(playback?.countries ?? {}).some((c) => c.owner !== turn?.player),
+  )
   const canMove = $derived(held.length > 1 && held.some((c) => c.soldiers > 1))
   const validAmount = $derived(Number.isInteger(amount) && amount >= 1 && amount <= limit)
 
@@ -64,8 +66,16 @@
   const roll = $derived(
     playback?.log.slice(playback.log.findLastIndex((e) => e.kind === 'attacked')).findLast((e) => e.kind === 'rolled'),
   )
-  const fighting = $derived(turn?.phase === 'attack' && turn.attack ? [turn.attack.source, turn.attack.target] : [])
-  const marked = $derived(fighting.length > 0 ? fighting : [source, target].filter((c) => c !== null))
+  const route = $derived.by((): Route | undefined => {
+    if (turn?.phase === 'attack' && turn.attack) return { ...turn.attack, attack: true, live: true }
+    if (source && target) return { source, target, attack: to?.owner !== human?.id, live: false }
+    if (!source && last?.kind === 'transferred' && playback?.running) {
+      const [from, to] = last.countries
+      if (from && to) return { source: from.code, target: to.code, attack: false, live: true }
+    }
+    return undefined
+  })
+  const marked = $derived(route ? [route.source, route.target] : source ? [source] : [])
 
   $effect(() => {
     if (turn?.phase === 'over') ended = true
@@ -78,11 +88,6 @@
     target = null
     amount = 1
     error = ''
-  })
-
-  // Fast-forward lasts until the player's next turn.
-  $effect(() => {
-    if (myTurn && last?.kind === 'turn' && playback) playback.fast = false
   })
 
   const nameOf = (playerId: string | null) => playback?.players.find((p) => p.id === playerId)?.name ?? ''
@@ -183,6 +188,7 @@
         countries={playback.countries}
         players={playback.players}
         {marked}
+        {route}
         onselect={myTurn && !pending ? select : undefined}
       />
     </div>
@@ -414,8 +420,10 @@
     margin: 0.5rem 0 0;
   }
 
+  /* On the right, so it never appears under a click meant for the buttons on the left. */
   .speed {
-    align-self: flex-start;
+    align-self: flex-end;
+    min-width: 13em;
     margin-top: 0.5rem;
   }
 
@@ -537,10 +545,13 @@
 
     /* The controls come before the result, so Roll stays put however the result reads. */
     .panel h3 {
+      order: -3;
+    }
+
+    fieldset {
       order: -2;
     }
 
-    fieldset,
     .speed {
       order: -1;
     }

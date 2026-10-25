@@ -86,6 +86,14 @@ export interface CountryInfo {
   value: number
 }
 
+/** A line on the map: an attack or a troop move, planned or happening. */
+export interface Route {
+  source: string
+  target: string
+  attack: boolean
+  live: boolean
+}
+
 export type Command =
   | { kind: 'reinforce'; country: string; soldiers: number }
   | { kind: 'transfer'; source: string; target: string; soldiers: number }

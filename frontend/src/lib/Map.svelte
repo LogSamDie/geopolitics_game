@@ -1,25 +1,65 @@
 <script lang="ts">
-  import type { Feature, FeatureCollection, Geometry } from 'geojson'
-  import { GeoJSONSource, Map as MapLibre, Marker, setWorkerUrl, type PointLike } from 'maplibre-gl'
+  import type { FeatureCollection, Geometry } from 'geojson'
+  import { GeoJSONSource, Map as MapLibre, Marker, MercatorCoordinate, setWorkerUrl, type PointLike } from 'maplibre-gl'
   import 'maplibre-gl/dist/maplibre-gl.css'
   // MapLibre loads its worker by a URL computed at runtime, which bundlers cannot follow.
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
   import { onMount } from 'svelte'
   import { colorOf, textOn } from './colors'
-  import type { Country, Player } from './types'
+  import type { Country, Player, Route } from './types'
 
   interface Props {
     countries: Record<string, Country>
     players: Player[]
-    marked: string[] // selected or fighting countries: outlined, and joined by a line
+    marked: string[] // selected or fighting countries: outlined
+    route?: Route
     onselect?: (code: string) => void // present only while the viewer may choose a country
   }
-  let { countries, players, marked, onselect }: Props = $props()
+  let { countries, players, marked, route, onselect }: Props = $props()
 
   type World = FeatureCollection<Geometry, { code: string; name: string; lon: number; lat: number }>
   const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
   // The map's colours come from the stylesheet, so each exists only once.
   const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+  /** A dash pattern shifted along the line by `offset`, which is how dashes march. */
+  function dashes(offset: number, dash: number, gap: number): number[] {
+    const shift = offset % (dash + gap)
+    return shift < gap ? [0, shift, dash, gap - shift] : [shift - gap, gap, dash - (shift - gap), 0]
+  }
+
+  /** A curved path bowing north: the point at `t`, from 0 at the start to 1 at the end. */
+  function arc(from: [number, number], to: [number, number]) {
+    const [a, b] = [MercatorCoordinate.fromLngLat(from), MercatorCoordinate.fromLngLat(to)]
+    const control = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 0.18 * Math.hypot(b.x - a.x, b.y - a.y) }
+    return (t: number) =>
+      new MercatorCoordinate(
+        (1 - t) ** 2 * a.x + 2 * t * (1 - t) * control.x + t ** 2 * b.x,
+        (1 - t) ** 2 * a.y + 2 * t * (1 - t) * control.y + t ** 2 * b.y,
+      )
+  }
+
+  /** What travels along a route: an arrowhead pointing right, or a circle for marching troops. */
+  function arrowhead(fill: string, circle = false): ImageData {
+    const context = document.createElement('canvas').getContext('2d')!
+    context.canvas.width = context.canvas.height = 48
+    if (circle) {
+      context.arc(24, 24, 15, 0, 2 * Math.PI)
+    } else {
+      context.moveTo(42, 24)
+      context.lineTo(8, 9)
+      context.lineTo(15, 24)
+      context.lineTo(8, 39)
+      context.closePath()
+    }
+    context.fillStyle = fill
+    context.fill()
+    context.strokeStyle = css('--ink')
+    context.lineWidth = 3
+    context.lineJoin = 'round'
+    context.stroke()
+    return context.getImageData(0, 0, 48, 48)
+  }
 
   setWorkerUrl(workerUrl)
 
@@ -55,6 +95,7 @@
       ([world]) => {
         created.addSource('world', { type: 'geojson', data: world, promoteId: 'code' })
         created.addSource('line', { type: 'geojson', data: EMPTY })
+        created.addSource('arrowhead', { type: 'geojson', data: EMPTY })
         // Countries in the game take their owner's colour from feature state.
         created.addLayer({
           id: 'land',
@@ -80,12 +121,25 @@
             'line-gap-width': 1.4,
           },
         })
-        // A dashed line between two marked countries.
+        // The route: a paper edge that only attacks have, the dashes, and the arrowhead.
         created.addLayer({
-          id: 'line',
+          id: 'route-edge',
           type: 'line',
           source: 'line',
-          paint: { 'line-color': css('--ink'), 'line-width': 1.2, 'line-dasharray': [4, 3] },
+          paint: { 'line-color': css('--panel') },
+        })
+        created.addLayer({ id: 'route', type: 'line', source: 'line', paint: { 'line-color': css('--ink') } })
+        created.addImage('arrowhead', arrowhead(css('--ink')), { pixelRatio: 2 })
+        created.addLayer({
+          id: 'route-arrowhead',
+          type: 'symbol',
+          source: 'arrowhead',
+          layout: {
+            'icon-image': 'arrowhead',
+            'icon-rotate': ['get', 'bearing'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+          },
         })
 
         const codeAt = (point: PointLike): string | undefined => {
@@ -119,10 +173,51 @@
       const state = { color: colorOf(players, country.owner), marked: marked.includes(country.code) }
       map.setFeatureState({ source: 'world', id: country.code }, state)
     }
-    const [a, b] = marked.map((code) => centres[code])
-    const line: Feature | undefined =
-      a && b ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [a, b] } } : undefined
-    map.getSource<GeoJSONSource>('line')?.setData(line ?? EMPTY)
+  })
+
+  // Bold dashes and an arrowhead for an attack, fine dashes for a move, and a circle once its troops
+  // set off. What is only planned stands still; what is happening marches to the target.
+  $effect(() => {
+    if (!map) return
+    const current = map
+    const line = current.getSource<GeoJSONSource>('line')
+    const head = current.getSource<GeoJSONSource>('arrowhead')
+    const a = route && centres[route.source]
+    const b = route && centres[route.target]
+    if (!route || !a || !b) {
+      line?.setData(EMPTY)
+      head?.setData(EMPTY)
+      return
+    }
+    const path = arc(a, b)
+    const point = (t: number) => path(t).toLngLat().toArray()
+    line?.setData({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: Array.from({ length: 49 }, (_, i) => point(i / 48)) },
+    })
+    const placeHead = (t: number) => {
+      const [before, after] = [path(t - 0.01), path(t + 0.01)]
+      const bearing = (Math.atan2(after.y - before.y, after.x - before.x) * 180) / Math.PI
+      head?.setData({ type: 'Feature', properties: { bearing }, geometry: { type: 'Point', coordinates: point(t) } })
+    }
+    const [dash, gap] = route.attack ? [2.5, 1.8] : [4, 3]
+    current.setPaintProperty('route', 'line-width', route.attack ? 2.2 : 1.2)
+    current.setPaintProperty('route-edge', 'line-width', route.attack ? 5 : 0)
+    current.setPaintProperty('route', 'line-dasharray', dashes(0, dash, gap))
+    current.setLayoutProperty('route-arrowhead', 'icon-size', route.attack ? 1 : 0.75)
+    const color = colorOf(players, countries[route.source]?.owner ?? '')
+    current.updateImage('arrowhead', arrowhead(color, !route.attack))
+    if (route.attack || route.live) placeHead(0.5)
+    else head?.setData(EMPTY)
+    if (!route.live || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    // Driven by the clock, so the motion carries on when a new event redraws the route.
+    const march = setInterval(() => {
+      const tick = Math.floor(performance.now() / 40)
+      current.setPaintProperty('route', 'line-dasharray', dashes(((tick % 24) / 24) * (dash + gap), dash, gap))
+      placeHead((tick % 38) / 38)
+    }, 40)
+    return () => clearInterval(march)
   })
 </script>
 

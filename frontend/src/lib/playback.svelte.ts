@@ -87,6 +87,7 @@ export class Playback {
     const event = this.events[this.shown]
     if (event === undefined) {
       this.timer = undefined
+      this.fast = false // fast-forward lasts until everything has been shown
       return
     }
     this.shown += 1
@@ -100,7 +101,7 @@ export class Playback {
 
   private delay(event: GameEvent): number {
     if (this.fast) return this.over ? 75 : 150 // a finished game has no next turn to wait for
-    if (event.kind === 'rolled') return 1500
+    if (event.kind === 'rolled' || event.kind === 'transferred') return 1500
     if (event.reason !== null) return 2000 // time to read an NPC's reasoning
     return 700
   }
