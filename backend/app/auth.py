@@ -1,9 +1,3 @@
-"""Sign up, log in and log out with a session cookie.
-
-Passwords are hashed with scrypt from the standard library. A session is a random token
-stored in MongoDB and sent to the browser as an HttpOnly cookie.
-"""
-
 import hashlib
 import hmac
 import secrets
@@ -16,7 +10,6 @@ from pymongo.errors import DuplicateKeyError
 
 from . import db
 
-COOKIE = "session"
 router = APIRouter(prefix="/api/auth")
 
 
@@ -42,7 +35,6 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 async def current_user(session: Annotated[str | None, Cookie()] = None) -> User:
-    """Dependency for routes that need a logged-in user."""
     found = await db.sessions.find_one({"_id": session}) if session else None
     user = await db.users.find_one({"_id": found["user_id"]}) if found else None
     if user is None:
@@ -55,7 +47,7 @@ async def start_session(response: Response, user: db.Document) -> User:
     await db.sessions.insert_one(
         {"_id": token, "user_id": user["_id"], "created": datetime.now(UTC)}
     )
-    response.set_cookie(COOKIE, token, httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    response.set_cookie("session", token, httponly=True, samesite="lax", max_age=30 * 24 * 3600)
     return User(id=str(user["_id"]), username=user["username"])
 
 
@@ -84,7 +76,7 @@ async def login(credentials: Credentials, response: Response) -> User:
 @router.post("/logout", status_code=204)
 async def logout(response: Response, session: Annotated[str | None, Cookie()] = None) -> None:
     await db.sessions.delete_one({"_id": session})
-    response.delete_cookie(COOKIE)
+    response.delete_cookie("session")
 
 
 @router.get("/me")

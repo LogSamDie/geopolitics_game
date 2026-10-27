@@ -1,5 +1,3 @@
-// Mirrors the Pydantic models in backend/app/engine.py and games.py.
-
 export type Phase = 'reinforce' | 'action' | 'attack' | 'over'
 
 export type Kind =
@@ -39,14 +37,12 @@ export interface Turn {
   winner: string | null
 }
 
-export type Pair = [attacker: number, defender: number]
-
 export interface GameEvent {
   seq: number
   kind: Kind
   text: string
   reason: string | null
-  dice: Pair[] | null
+  dice: [attacker: number, defender: number][] | null
   countries: Country[]
   turn: Turn
 }
@@ -55,7 +51,6 @@ export interface State {
   players: Player[]
   countries: Country[]
   turn: Turn
-  seq: number
 }
 
 export interface GameView {
@@ -79,14 +74,6 @@ export interface User {
   username: string
 }
 
-export interface CountryInfo {
-  code: string
-  name: string
-  population: number
-  value: number
-}
-
-/** A line on the map: an attack or a troop move, planned or happening. */
 export interface Route {
   source: string
   target: string

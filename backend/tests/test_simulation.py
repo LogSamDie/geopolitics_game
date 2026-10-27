@@ -3,7 +3,7 @@
 import random
 
 from app import npc
-from app.engine import Country, Event, Game, dice_count
+from app.engine import Country, Event, Game
 from tests.helpers import new_game
 
 
@@ -64,7 +64,7 @@ class Checker:
         if event.kind == "rolled":
             assert event.turn.attack is not None and event.dice is not None
             src, dst = self.board[event.turn.attack.source], self.board[event.turn.attack.target]
-            assert len(event.dice) == dice_count(src.soldiers, dst.soldiers)
+            assert len(event.dice) == min(src.soldiers - 1, dst.soldiers)
             assert all(1 <= a <= 6 and 1 <= d <= 6 for a, d in event.dice)
             after = {c.code: c for c in event.countries}
             assert after[src.code].soldiers == src.soldiers - sum(a < d for a, d in event.dice)

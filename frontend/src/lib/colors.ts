@@ -1,7 +1,5 @@
-import type { Player } from './types'
-
-// The human is always the first colour; the NPCs take the rest in turn order.
-const PALETTE = [
+// Player ids are p0, the human, to p9.
+const palette = [
   '#a4343e',
   '#dcbd6b',
   '#a9bb8e',
@@ -14,11 +12,6 @@ const PALETTE = [
   '#b5a893',
 ]
 
-export function colorOf(players: Player[], playerId: string): string {
-  const player = players.find((p) => p.id === playerId)
-  const index = player?.npc ? 1 + players.filter((p) => p.npc).indexOf(player) : 0
-  return PALETTE[index] ?? '#777'
-}
+export const colorOf = (playerId: string): string => palette[Number(playerId.slice(1))]
 
-/** Text that stays legible on an owner colour: light on the human's, dark on the others. */
-export const textOn = (color: string): string => (color === PALETTE[0] ? 'var(--panel)' : 'var(--ink)')
+export const textOn = (color: string): string => (color === palette[0] ? 'var(--panel)' : 'var(--ink)')

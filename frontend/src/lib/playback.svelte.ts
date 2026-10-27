@@ -1,29 +1,23 @@
-import type { GameEvent, GameView, Player } from './types'
+import type { GameEvent, GameView } from './types'
 
-/**
- * What the viewer sees: the board after the first `shown` of all known events. New events are
- * revealed one at a time with a pause, which is what makes battles and NPC turns watchable, and
- * moving `shown` back replays a finished game.
- */
+/** The board after the first `shown` of the events, revealed one at a time with a pause. */
 export class Playback {
-  readonly players: Player[]
+  readonly human: string
   events = $state<GameEvent[]>([])
   shown = $state(0)
   fast = $state(false)
   private timer = $state<ReturnType<typeof setTimeout>>()
 
   readonly log = $derived(this.events.slice(0, this.shown))
-  // The first event lists every country; each later one lists those it changed.
+  // The first event lists every country, later ones those they changed.
   readonly countries = $derived(Object.fromEntries(this.log.flatMap((e) => e.countries).map((c) => [c.code, c])))
 
   constructor(view: GameView) {
-    this.players = view.state.players
+    this.human = view.state.players.find((p) => !p.npc)!.id
     this.events = view.events
-    // Everything up to the player's last own move is shown at once; what followed is played out.
-    // So a new game plays from the beginning, and a reload replays the NPC turns since. A finished
-    // game opens at its end, unless the player was out before ever moving and has yet to see it.
-    const human = view.state.players.find((p) => !p.npc)
-    const lastMove = view.events.findLastIndex((e) => e.turn.player === human?.id && e.kind !== 'turn')
+    // Show at once up to the player's last move and play out the rest. A finished game opens at
+    // its end, unless the player was out before ever moving and has yet to see what happened.
+    const lastMove = view.events.findLastIndex((e) => e.turn.player === this.human && e.kind !== 'turn')
     this.shown = this.over && lastMove >= 0 ? view.events.length : Math.max(1, lastMove + 1)
     this.play()
   }
@@ -40,7 +34,6 @@ export class Playback {
     return this.events.at(-1)?.turn.phase === 'over'
   }
 
-  /** Events are being revealed one after another. */
   get playing(): boolean {
     return this.running && this.busy
   }
@@ -58,16 +51,12 @@ export class Playback {
     this.play()
   }
 
-  play(): void {
-    if (this.timer === undefined) this.step()
-  }
-
   pause(): void {
     clearTimeout(this.timer)
     this.timer = undefined
   }
 
-  /** The replay button: stop a running replay, else go on from here, or from the top at the end. */
+  /** Stop a running replay, else go on from here, or from the top at the end. */
   toggle(): void {
     const stopping = this.playing
     this.pause()
@@ -76,22 +65,22 @@ export class Playback {
     this.play()
   }
 
-  /** Change speed, applied to the pause under way. */
   toggleSpeed(): void {
     this.fast = !this.fast
-    const current = this.events[this.shown - 1]
-    if (this.running && current) this.wait(current)
+    if (this.running) this.wait(this.events[this.shown - 1])
+  }
+
+  private play(): void {
+    if (!this.running) this.step()
   }
 
   private step(): void {
-    const event = this.events[this.shown]
-    if (event === undefined) {
+    if (this.busy) {
+      this.wait(this.events[this.shown++])
+    } else {
       this.timer = undefined
-      this.fast = false // fast-forward lasts until everything has been shown
-      return
+      this.fast = false
     }
-    this.shown += 1
-    this.wait(event)
   }
 
   private wait(event: GameEvent): void {
@@ -100,9 +89,9 @@ export class Playback {
   }
 
   private delay(event: GameEvent): number {
-    if (this.fast) return this.over ? 75 : 150 // a finished game has no next turn to wait for
+    if (this.fast) return this.over ? 75 : 150
     if (event.kind === 'rolled' || event.kind === 'transferred') return 1500
-    if (event.reason !== null) return 2000 // time to read an NPC's reasoning
+    if (event.reason !== null) return 2000
     return 700
   }
 }

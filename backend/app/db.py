@@ -1,5 +1,3 @@
-"""MongoDB connection. Three collections: users, sessions and games."""
-
 import os
 from typing import Any
 

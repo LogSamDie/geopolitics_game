@@ -1,102 +1,93 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import { api, message } from './lib/api'
   import { colorOf } from './lib/colors'
   import Dice from './lib/Dice.svelte'
   import Log from './lib/Log.svelte'
   import Map from './lib/Map.svelte'
   import { Playback } from './lib/playback.svelte'
-  import type { Command, Kind, Route, User } from './lib/types'
+  import type { Command, GameView, Route, User } from './lib/types'
 
   interface Props {
-    id: string
+    view: GameView
     user: User | null
   }
-  let { id, user }: Props = $props()
+  let { view, user }: Props = $props()
 
-  let playback = $state<Playback>()
-  let owner = $state(false)
+  const playback = new Playback(untrack(() => view))
+  const owner = $derived(user?.id === view.owner)
   let error = $state('')
-  let pending = $state(false) // a command is on its way to the server
+  let pending = $state(false)
   let source = $state<string | null>(null)
   let target = $state<string | null>(null)
   let amount = $state(1)
   let copied = $state(false)
-  let ended = $state(false) // the end of the game has been shown once
+  let ended = $state(false) // the end of the game has been shown
 
   onMount(() => {
-    api.game(id).then(
-      (view) => {
-        playback = new Playback(view)
-        owner = user?.id === view.owner
-      },
-      (e) => (error = message(e)),
-    )
     const poll = setInterval(() => {
-      if (playback && !playback.over)
-        api.game(id, playback.seq).then(
-          (v) => playback?.add(v.events),
+      if (!playback.over)
+        api.game(view.id, playback.seq).then(
+          (v) => playback.add(v.events),
           () => {},
         )
     }, 2000)
     return () => {
       clearInterval(poll)
-      playback?.pause()
+      playback.pause()
     }
   })
 
-  const human = $derived(playback?.players.find((p) => !p.npc))
-  const last = $derived(playback?.log.at(-1))
-  const turn = $derived(last?.turn)
-  const mine = $derived(owner && turn?.player === human?.id)
-  const myTurn = $derived(mine && playback?.busy === false && turn?.phase !== 'over')
-  const from = $derived(source === null ? undefined : playback?.countries[source])
-  const to = $derived(target === null ? undefined : playback?.countries[target])
-  const limit = $derived(turn?.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
-  const held = $derived(Object.values(playback?.countries ?? {}).filter((c) => c.owner === human?.id))
-  const out = $derived(
-    owner && held.length === 0 && Object.values(playback?.countries ?? {}).some((c) => c.owner !== turn?.player),
-  )
-  const canMove = $derived(held.length > 1 && held.some((c) => c.soldiers > 1))
+  const last = $derived(playback.log.at(-1)!)
+  const turn = $derived(last.turn)
+  const countries = $derived(Object.values(playback.countries))
+  const mine = $derived(owner && turn.player === playback.human)
+  const myTurn = $derived(mine && !playback.busy && turn.phase !== 'over')
+  const canPick = $derived(myTurn && !pending && turn.phase !== 'attack')
+  const from = $derived(source ? playback.countries[source] : undefined)
+  const to = $derived(target ? playback.countries[target] : undefined)
+  const limit = $derived(turn.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
   const validAmount = $derived(Number.isInteger(amount) && amount >= 1 && amount <= limit)
-
-  // The dice stay up from the attack until something unrelated happens.
-  const QUIET: Kind[] = ['turn', 'reinforced', 'transferred', 'skipped', 'over']
-  const inBattle = $derived(turn?.attack != null && last !== undefined && !QUIET.includes(last.kind))
-  const roll = $derived(
-    playback?.log.slice(playback.log.findLastIndex((e) => e.kind === 'attacked')).findLast((e) => e.kind === 'rolled'),
+  const held = $derived(countries.filter((c) => c.owner === playback.human))
+  const out = $derived(owner && held.length === 0 && countries.some((c) => c.owner !== turn.player))
+  const canMove = $derived(held.length > 1 && held.some((c) => c.soldiers > 1))
+  const sides = $derived(
+    turn.attack && last.kind !== 'transferred' && last.kind !== 'over'
+      ? [playback.countries[turn.attack.source], playback.countries[turn.attack.target]]
+      : undefined,
   )
+  const roll = $derived(playback.log.findLast((e) => e.kind === 'rolled' || e.kind === 'attacked'))
   const route = $derived.by((): Route | undefined => {
-    if (turn?.phase === 'attack' && turn.attack) return { ...turn.attack, attack: true, live: true }
-    if (source && target) return { source, target, attack: to?.owner !== human?.id, live: false }
-    if (!source && last?.kind === 'transferred' && playback?.running) {
-      const [from, to] = last.countries
-      if (from && to) return { source: from.code, target: to.code, attack: false, live: true }
-    }
-    return undefined
+    if (turn.phase === 'attack' && turn.attack) return { ...turn.attack, attack: true, live: true }
+    if (source && target) return { source, target, attack: to?.owner !== playback.human, live: false }
+    if (!source && last.kind === 'transferred' && playback.running)
+      return { source: last.countries[0].code, target: last.countries[1].code, attack: false, live: true }
   })
   const marked = $derived(route ? [route.source, route.target] : source ? [source] : [])
 
   $effect(() => {
-    if (turn?.phase === 'over') ended = true
+    if (turn.phase === 'over') ended = true
   })
 
   // A choice made in one turn means nothing in the next, even if that turn was played elsewhere.
   $effect(() => {
     if (myTurn) return
-    source = null
-    target = null
-    amount = 1
+    clearChoice()
     error = ''
   })
 
-  const nameOf = (playerId: string | null) => playback?.players.find((p) => p.id === playerId)?.name ?? ''
+  function clearChoice(): void {
+    source = null
+    target = null
+    amount = 1
+  }
+
+  const nameOf = (playerId: string | null) => view.state.players.find((p) => p.id === playerId)?.name
   const soldiers = (n: number) => `${n} ${n === 1 ? 'soldier' : 'soldiers'}`
 
   const heading = $derived.by(() => {
-    if (!turn) return ''
     if (turn.phase === 'over') {
-      if (owner && turn.winner === human?.id) return 'You won'
+      if (owner && turn.winner === playback.human) return 'You won'
       return `${owner ? 'You lost. ' : ''}${nameOf(turn.winner)} wins`
     }
     if (out) return 'You are out of the game'
@@ -108,14 +99,14 @@
   })
 
   const speedLabel = $derived.by(() => {
-    if (playback?.fast) return 'Normal speed'
+    if (playback.fast) return 'Normal speed'
     if (ended || !owner || mine) return 'Fast-forward'
     if (out) return 'Fast-forward to the end'
-    return playback?.over ? 'Fast-forward' : 'Fast-forward to my turn'
+    return playback.over ? 'Fast-forward' : 'Fast-forward to my turn'
   })
 
   const hint = $derived.by(() => {
-    if (!myTurn || !turn) return ''
+    if (!myTurn) return ''
     if (turn.phase === 'reinforce')
       return from ? `${from.name} has ${soldiers(from.soldiers)}. How many to add?` : 'Pick one of your countries.'
     if (turn.phase !== 'action') return ''
@@ -127,7 +118,7 @@
         : 'Nothing left to move. End the turn.'
     }
     if (!to) return `From ${from.name} (${soldiers(from.soldiers)}). Now pick a target.`
-    if (to.owner === human?.id) return from.soldiers < 2 ? `${from.name} must keep at least 1 soldier.` : ''
+    if (to.owner === playback.human) return from.soldiers < 2 ? `${from.name} must keep at least 1 soldier.` : ''
     if (turn.attack) return 'You have already attacked this turn.'
     return from.soldiers < 2 ? 'A country needs at least 2 soldiers to attack.' : ''
   })
@@ -136,12 +127,10 @@
     error = ''
     pending = true
     try {
-      const view = await api.play(id, command)
-      if (playback && !playback.busy) playback.pause() // the player's own move shows at once
-      playback?.add(view.events)
-      source = null
-      target = null
-      amount = 1
+      const { events } = await api.play(view.id, command)
+      if (!playback.busy) playback.pause() // the player's own move shows at once
+      playback.add(events)
+      clearChoice()
     } catch (e) {
       error = message(e)
     } finally {
@@ -150,22 +139,11 @@
   }
 
   function select(code: string): void {
-    if (!turn || !human || !playback) return
     error = ''
-    const own = playback.countries[code]?.owner === human.id
-    if (turn.phase === 'reinforce') {
-      if (own) source = code
-    } else if (turn.phase === 'action') {
-      if (code === source) {
-        source = null // clicking the source again clears the choice
-        target = null
-        amount = 1
-      } else if (source === null) {
-        if (own) source = code
-      } else {
-        target = code
-      }
-    }
+    const own = playback.countries[code].owner === playback.human
+    if (code === source) clearChoice()
+    else if (turn.phase === 'action' && source) target = code
+    else if (own) source = code
   }
 
   function copyLink(): void {
@@ -176,162 +154,144 @@
   }
 </script>
 
-{#if playback && turn && human}
-  <div class="layout">
-    <header>
-      <a class="brand" href="/">Geopoly</a>
-      <button class="copy" onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
-    </header>
+<div class="layout">
+  <header>
+    <a class="brand" href="/">Geopoly</a>
+    <button class="copy" onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
+  </header>
 
-    <div class="board">
-      <Map
-        countries={playback.countries}
-        players={playback.players}
-        {marked}
-        {route}
-        onselect={myTurn && !pending ? select : undefined}
-      />
-    </div>
+  <div class="board">
+    <Map countries={playback.countries} {marked} {route} onselect={canPick ? select : undefined} />
+  </div>
 
-    <div class="panel">
-      <h3 class:result={out || turn.phase === 'over'}>
-        <i class="swatch" style:--owner={colorOf(playback.players, out ? human.id : turn.player)}></i>
-        {heading}
-      </h3>
-      {#if inBattle && turn.attack}
-        {@const src = playback.countries[turn.attack.source]}
-        {@const dst = playback.countries[turn.attack.target]}
-        <div class="fight">
-          <div class="sides">
-            {#each [src, dst] as side, i (i)}
-              <span
-                ><i class="swatch" style:--owner={colorOf(playback.players, side?.owner ?? '')}></i>
-                {side?.name}</span
-              >
-              <b>{side?.soldiers}</b>
-            {/each}
-          </div>
-          {#if roll}
-            {#key roll.seq}<Dice {roll} players={playback.players} live={!playback.fast} />{/key}
+  <div class="panel">
+    <h3 class:result={out || turn.phase === 'over'}>
+      <i class="swatch" style:--owner={colorOf(out ? playback.human : turn.player)}></i>
+      {heading}
+    </h3>
+    {#if sides}
+      <div class="fight">
+        <div class="sides">
+          {#each sides as side (side.code)}
+            <span><i class="swatch" style:--owner={colorOf(side.owner)}></i> {side.name}</span>
+            <b>{side.soldiers}</b>
+          {/each}
+        </div>
+        {#if roll?.dice}
+          {#key roll.seq}<Dice {roll} live={!playback.fast} />{/key}
+        {/if}
+      </div>
+    {/if}
+    {#if last.kind !== 'turn' && last.kind !== 'over'}<p>{last.text}</p>{/if}
+    {#if last.reason}<p class="muted"><em>{last.reason}</em></p>{/if}
+    {#if error}<p class="error">{error}</p>{/if}
+    {#if playback.playing}
+      <button class="speed" onclick={() => playback.toggleSpeed()}>{speedLabel}</button>
+    {/if}
+    <fieldset disabled={pending}>
+      {#if !owner}
+        <p class="muted">
+          You are watching this game.
+          {#if !user}<a href="/">Log in</a> to start your own.{/if}
+        </p>
+      {:else if hint}
+        <p class="muted">{hint}</p>
+      {:else if out}
+        <p class="muted">The others play on. Round {turn.round}: {nameOf(turn.player)}'s turn.</p>
+      {/if}
+      {#if mine && turn.phase === 'attack' && !playback.over}
+        <!-- Locked during the pause after a result, so a double click is one click. -->
+        <div class="row">
+          <button class="primary" disabled={playback.running} onclick={() => play({ kind: 'roll' })}>Roll</button>
+          <button disabled={playback.running} onclick={() => play({ kind: 'fight' })}>Roll to the end</button>
+          <button disabled={playback.running} onclick={() => play({ kind: 'stop' })}>Stop and end turn</button>
+        </div>
+      {:else if myTurn && turn.phase === 'reinforce' && from}
+        <div class="row">
+          <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
+          <button
+            class="primary"
+            disabled={!validAmount}
+            onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: amount })}
+          >
+            Place
+          </button>
+          {#if turn.reinforcements > 1}
+            <button onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: turn.reinforcements })}>
+              Place all {turn.reinforcements}
+            </button>
           {/if}
         </div>
-      {/if}
-      {#if last && last.kind !== 'turn' && last.kind !== 'over'}<p>{last.text}</p>{/if}
-      {#if last?.reason}<p class="muted"><em>{last.reason}</em></p>{/if}
-      {#if error}<p class="error">{error}</p>{/if}
-      {#if playback.playing}
-        <button class="speed" onclick={() => playback?.toggleSpeed()}>{speedLabel}</button>
-      {/if}
-      <fieldset disabled={pending}>
-        {#if !owner}
-          <p class="muted">
-            You are watching this game.
-            {#if !user}<a href="/">Log in</a> to start your own.{/if}
-          </p>
-        {:else if hint}
-          <p class="muted">{hint}</p>
-        {:else if out}
-          <p class="muted">The others play on. Round {turn.round}: {nameOf(turn.player)}'s turn.</p>
-        {/if}
-        {#if mine && turn.phase === 'attack' && !playback.over}
-          <!-- Locked during the pause after a result, so a double click is one roll. -->
+      {:else if myTurn && turn.phase === 'action'}
+        {#if from && to && to.owner === playback.human}
           <div class="row">
-            <button class="primary" disabled={playback.running} onclick={() => play({ kind: 'roll' })}>Roll</button>
-            <button disabled={playback.running} onclick={() => play({ kind: 'fight' })}>Roll to the end</button>
-            <button disabled={playback.running} onclick={() => play({ kind: 'stop' })}>Stop and end turn</button>
-          </div>
-        {:else if myTurn && turn.phase === 'reinforce' && from}
-          <div class="row">
+            <span>{from.name} to {to.name}:</span>
             <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
             <button
               class="primary"
               disabled={!validAmount}
-              onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: amount })}
+              onclick={() => play({ kind: 'transfer', source: from.code, target: to.code, soldiers: amount })}
             >
-              Place
+              Move
             </button>
-            {#if turn.reinforcements > 1}
-              <button onclick={() => play({ kind: 'reinforce', country: from.code, soldiers: turn.reinforcements })}>
-                Place all {turn.reinforcements}
-              </button>
-            {/if}
           </div>
-        {:else if myTurn && turn.phase === 'action'}
-          {#if from && to && to.owner === human.id}
-            <div class="row">
-              <span>{from.name} to {to.name}:</span>
-              <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
-              <button
-                class="primary"
-                disabled={!validAmount}
-                onclick={() => play({ kind: 'transfer', source: from.code, target: to.code, soldiers: amount })}
-              >
-                Move
-              </button>
-            </div>
-          {:else if from && to}
-            <div class="row">
-              <span>{from.name} ({from.soldiers}) against {to.name} ({to.soldiers}):</span>
-              <button
-                class="primary"
-                disabled={turn.attack !== null || from.soldiers < 2}
-                onclick={() => play({ kind: 'attack', source: from.code, target: to.code })}
-              >
-                Attack
-              </button>
-            </div>
-          {/if}
+        {:else if from && to}
           <div class="row">
-            <!-- Locked too: this button can land under a click meant for the one it replaced. -->
-            <button disabled={playback.running} onclick={() => play({ kind: 'end_turn' })}>
-              {turn.attack ? 'End turn' : 'Skip attack and end turn'}
+            <span>{from.name} ({from.soldiers}) against {to.name} ({to.soldiers}):</span>
+            <button
+              class="primary"
+              disabled={turn.attack !== null || from.soldiers < 2}
+              onclick={() => play({ kind: 'attack', source: from.code, target: to.code })}
+            >
+              Attack
             </button>
           </div>
         {/if}
-      </fieldset>
-    </div>
-
-    {#if ended}
-      <div class="replay">
-        <button class="toggle" onclick={() => playback?.toggle()}>
-          {playback.playing ? 'Stop' : playback.busy ? 'Play' : 'Replay'}
-        </button>
-        <input
-          type="range"
-          min="1"
-          max={playback.events.length}
-          bind:value={playback.shown}
-          oninput={() => playback?.pause()}
-          aria-label="Replay position"
-        />
-        <span class="muted">Step {playback.shown} of {playback.events.length}</span>
-      </div>
-    {/if}
-
-    <aside>
-      <section class="countries">
-        {#each Object.values(playback.countries) as country (country.code)}
-          <button
-            class:current={turn.phase !== 'over' && country.owner === turn.player}
-            class:marked={marked.includes(country.code)}
-            disabled={!myTurn || pending}
-            onclick={() => select(country.code)}
-          >
-            <span><i class="swatch" style:--owner={colorOf(playback.players, country.owner)}></i> {country.name}</span>
-            <small class="muted">{owner && country.owner === human.id ? 'you' : nameOf(country.owner)}</small>
-            <b>{country.soldiers}</b>
+        <div class="row">
+          <button disabled={playback.running} onclick={() => play({ kind: 'end_turn' })}>
+            {turn.attack ? 'End turn' : 'Skip attack and end turn'}
           </button>
-        {/each}
-      </section>
-
-      <Log events={playback.log} players={playback.players} />
-    </aside>
+        </div>
+      {/if}
+    </fieldset>
   </div>
-{:else if error}
-  <p class="error notice">{error} <a href="/">Back to the start</a></p>
-{:else}
-  <p class="muted notice">Loading the game…</p>
-{/if}
+
+  {#if ended}
+    <div class="replay">
+      <button class="toggle" onclick={() => playback.toggle()}>
+        {playback.playing ? 'Stop' : playback.busy ? 'Play' : 'Replay'}
+      </button>
+      <input
+        type="range"
+        min="1"
+        max={playback.events.length}
+        bind:value={playback.shown}
+        oninput={() => playback.pause()}
+        aria-label="Replay position"
+      />
+      <span class="muted">Step {playback.shown} of {playback.events.length}</span>
+    </div>
+  {/if}
+
+  <aside>
+    <section class="countries">
+      {#each countries as country (country.code)}
+        <button
+          class:current={turn.phase !== 'over' && country.owner === turn.player}
+          class:marked={marked.includes(country.code)}
+          disabled={!canPick}
+          onclick={() => select(country.code)}
+        >
+          <span><i class="swatch" style:--owner={colorOf(country.owner)}></i> {country.name}</span>
+          <small class="muted">{owner && country.owner === playback.human ? 'you' : nameOf(country.owner)}</small>
+          <b>{country.soldiers}</b>
+        </button>
+      {/each}
+    </section>
+
+    <Log events={playback.log} />
+  </aside>
+</div>
 
 <style>
   .layout {
@@ -374,7 +334,6 @@
     min-height: 0;
   }
 
-  /* Over the bottom of the map. */
   .panel {
     grid-area: board;
     align-self: end;
@@ -395,7 +354,6 @@
     gap: 0.75rem;
   }
 
-  /* Fixed columns, so the dice stay put whatever the names and counts. */
   .sides {
     flex: none;
     display: grid;
@@ -420,7 +378,6 @@
     margin: 0.5rem 0 0;
   }
 
-  /* On the right, so it never appears under a click meant for the buttons on the left. */
   .speed {
     align-self: flex-end;
     min-width: 13em;
@@ -441,7 +398,7 @@
   }
 
   .toggle {
-    min-width: 5em; /* the label changes while the replay runs */
+    min-width: 5em;
   }
 
   .replay input {
@@ -514,7 +471,6 @@
     white-space: nowrap;
   }
 
-  /* Phones: one scrolling column, map on top, the panel right under it. */
   @media (max-width: 800px), (max-height: 500px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
@@ -537,13 +493,12 @@
       grid-area: panel;
       justify-self: stretch;
       width: auto;
-      min-height: 10rem; /* so the country list below rarely moves */
+      min-height: 10rem;
       margin: 0;
       border-width: 1px 0 0;
       box-shadow: none;
     }
 
-    /* The controls come before the result, so Roll stays put however the result reads. */
     .panel h3 {
       order: -3;
     }

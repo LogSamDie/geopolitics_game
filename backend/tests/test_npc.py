@@ -80,7 +80,7 @@ def test_npc_moves_half_its_army_into_a_conquest() -> None:
     npc.play_turn(game)
     moved = game.events[-2]
     assert moved.kind == "transferred"
-    assert moved.reason is not None and "Garrisons" in moved.reason
+    assert moved.reason is not None and "garrison" in moved.reason
     assert [c.soldiers for c in moved.countries] == [5, 6]  # 9 - 4, and the bonus of 2 + 4
 
 

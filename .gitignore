@@ -4,14 +4,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
 
 # Node
 node_modules/
 frontend/dist/
-
-# Local
-.env
-.DS_Store
-
-# Tooling output
-.coverage

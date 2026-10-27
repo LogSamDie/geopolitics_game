@@ -1,4 +1,3 @@
-/** The app has two pages, "/" and "/games/:id", so a few lines replace a router library. */
 export const route = $state({ path: location.pathname })
 
 export function navigate(path: string): void {
@@ -10,7 +9,6 @@ window.addEventListener('popstate', () => {
   route.path = location.pathname
 })
 
-// Internal links navigate in place; modifier clicks keep their browser meaning.
 document.addEventListener('click', (e) => {
   const link = (e.target as Element).closest('a[href^="/"]')
   if (link instanceof HTMLAnchorElement && !e.ctrlKey && !e.metaKey && !e.shiftKey) {

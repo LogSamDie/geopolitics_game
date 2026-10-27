@@ -1,40 +1,16 @@
-"""The countries that can be played and how many soldiers each one starts with."""
-
 import json
+from bisect import bisect_left
 from pathlib import Path
 
-from pydantic import BaseModel
-
-# (population limit, soldiers) from the assignment's table; the last row is "anything more".
-SOLDIER_TABLE = [
-    (5_000_000, 1),
-    (10_000_000, 2),
-    (25_000_000, 3),
-    (50_000_000, 4),
-    (75_000_000, 5),
-    (100_000_000, 6),
-    (125_000_000, 7),
-    (150_000_000, 8),
-]
+from .engine import Country
 
 
 def soldier_value(population: int) -> int:
-    """Soldiers a country is worth. India (1.4bn) is worth 9, Vatican City (500) is worth 1."""
-    for limit, soldiers in SOLDIER_TABLE:
-        if population <= limit:
-            return soldiers
-    return 9
+    """The assignment's table: up to 5 million is worth 1 soldier, up to 10 million 2, and so on."""
+    return bisect_left([5, 10, 25, 50, 75, 100, 125, 150], population / 1e6) + 1
 
 
-class CountryInfo(BaseModel):
-    code: str
-    name: str
-    population: int
-    value: int  # soldiers it starts with
-
-
-# All playable countries keyed by ISO code, from countries.json (see scripts/).
 COUNTRIES = {
-    c["code"]: CountryInfo(**c, value=soldier_value(c["population"]))
+    c["code"]: Country(code=c["code"], name=c["name"], value=soldier_value(c["population"]))
     for c in json.loads((Path(__file__).parent / "countries.json").read_text())
 }

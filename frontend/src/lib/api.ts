@@ -1,19 +1,16 @@
-import type { Command, CountryInfo, GameSummary, GameView, User } from './types'
+import type { Command, Country, GameSummary, GameView, User } from './types'
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const detail: unknown = await response.json().then(
-      (e: { detail?: unknown }) => e.detail,
-      () => undefined,
-    )
+    const { detail } = await response.json().catch(() => ({}))
     throw new Error(typeof detail === 'string' ? detail : `Request failed (${response.status})`)
   }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
+  return response.status === 204 ? (undefined as T) : response.json()
 }
 
 export const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
@@ -23,7 +20,7 @@ export const api = {
   register: (username: string, password: string) => request<User>('POST', '/api/auth/register', { username, password }),
   login: (username: string, password: string) => request<User>('POST', '/api/auth/login', { username, password }),
   logout: () => request<void>('POST', '/api/auth/logout'),
-  countries: () => request<CountryInfo[]>('GET', '/api/countries'),
+  countries: () => request<Country[]>('GET', '/api/countries'),
   games: () => request<GameSummary[]>('GET', '/api/games'),
   createGame: (country: string) => request<GameView>('POST', '/api/games', { country }),
   game: (id: string, after = 0) => request<GameView>('GET', `/api/games/${id}?after=${after}`),

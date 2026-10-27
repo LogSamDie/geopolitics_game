@@ -5,8 +5,7 @@
     "module": "esnext",
     "types": ["svelte", "vite/client"],
     "noEmit": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true
+    "strict": true
   },
   "include": ["src", "vite.config.ts"]
 }

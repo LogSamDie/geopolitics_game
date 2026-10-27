@@ -133,7 +133,6 @@ button:disabled {
   margin-top: 0.5rem;
 }
 
-/* A square in a player's colour. */
 .swatch {
   display: inline-block;
   width: 0.7em;
@@ -141,25 +140,13 @@ button:disabled {
   margin-right: 0.2em;
   background: var(--owner);
   border: 1px solid var(--border);
-  vertical-align: -0.02em; /* centres it on the capitals and small letters alike */
-}
-
-@keyframes stamp {
-  from {
-    transform: scale(1.4);
-  }
-}
-
-@keyframes appear {
-  from {
-    opacity: 0;
-  }
+  vertical-align: -0.02em;
 }
 
 @media (pointer: coarse) {
   input,
   select {
-    font-size: 16px; /* below this iOS zooms the page into a focused field */
+    font-size: 16px; /* iOS zooms into smaller fields */
   }
 
   button {

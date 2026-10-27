@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, message } from './lib/api'
   import { navigate } from './lib/router.svelte'
-  import type { CountryInfo, GameSummary, User } from './lib/types'
+  import type { Country, GameSummary, User } from './lib/types'
 
   interface Props {
     user: User | null
@@ -12,7 +12,7 @@
   let username = $state('')
   let password = $state('')
   let error = $state('')
-  let countries = $state<CountryInfo[]>([])
+  let countries = $state<Country[]>([])
   let games = $state<GameSummary[]>([])
   let chosen = $state('ZA')
 
@@ -22,13 +22,13 @@
     api.games().then(
       (g) => (games = g),
       (e) => {
-        error = message(e) // the session has ended: back to the login form
+        error = message(e)
         onuser(null)
       },
     )
   })
 
-  let busy = false // a double click must not send the request twice
+  let busy = false
 
   async function attempt(action: () => Promise<unknown>): Promise<void> {
     if (busy) return
@@ -89,9 +89,7 @@
           {/each}
         </select>
       </label>
-      <div class="row">
-        <button class="primary" onclick={start}>Start</button>
-      </div>
+      <button class="primary" onclick={start}>Start</button>
       {#if error}<p class="error">{error}</p>{/if}
     </section>
 
@@ -142,7 +140,6 @@
     gap: 0.35rem;
   }
 
-  /* Country, dotted line, then the state of the game. */
   li {
     display: flex;
     align-items: baseline;

@@ -1,19 +1,18 @@
 <script lang="ts">
   import Dice from './Dice.svelte'
-  import type { GameEvent, Player } from './types'
+  import type { GameEvent } from './types'
 
   interface Props {
     events: GameEvent[]
-    players: Player[]
   }
-  let { events, players }: Props = $props()
+  let { events }: Props = $props()
 
   let list: HTMLOListElement
-  let following = true // keep showing the newest entry unless the reader scrolled up
+  let following = true // false while the reader has scrolled up
 
   $effect(() => {
     void events.length
-    if (list.scrollHeight - list.clientHeight <= 40) following = true // nothing left to scroll
+    if (list.scrollHeight - list.clientHeight <= 40) following = true
     if (following) list.scrollTop = list.scrollHeight
   })
 </script>
@@ -22,12 +21,8 @@
   {#each events as event (event.seq)}
     <li class={event.kind}>
       {event.text}
-      {#if event.reason !== null}
-        <em>{event.reason}</em>
-      {/if}
-      {#if event.dice}
-        <div class="dice"><Dice roll={event} {players} /></div>
-      {/if}
+      {#if event.reason}<em>{event.reason}</em>{/if}
+      {#if event.dice}<div class="dice"><Dice roll={event} /></div>{/if}
     </li>
   {/each}
 </ol>
@@ -70,6 +65,12 @@
     padding-top: 0.5rem;
     border-top: 3px double var(--ink);
     font-weight: 700;
+  }
+
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
   }
 
   em,

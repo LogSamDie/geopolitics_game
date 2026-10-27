@@ -1,8 +1,6 @@
-"""Create games, read them (anyone with the link) and play a turn (the owner only).
+"""Anyone with a game's link can read it; only its owner can play it.
 
-A game document holds the current `state` plus the full `events` log. Every command loads the
-state, applies the move, lets the NPCs play until it is the human's turn again, and saves both
-the new state and the new events in one update guarded by a version number.
+A game document holds the current state and the full event log.
 """
 
 import random
@@ -15,8 +13,8 @@ from pydantic import BaseModel, Field
 
 from . import db, npc
 from .auth import User, current_user
-from .countries import COUNTRIES, CountryInfo
-from .engine import COUNTRIES_PER_GAME, Country, Event, Game, RuleError, State, Turn
+from .countries import COUNTRIES
+from .engine import NPC_NAMES, Country, Event, Game, RuleError, State, Turn
 
 router = APIRouter(prefix="/api")
 ALL_EVENTS = 10**6  # $slice needs an upper bound
@@ -41,49 +39,35 @@ class Attack(BaseModel):
     target: str
 
 
-class Roll(BaseModel):
-    kind: Literal["roll"]
+class Simple(BaseModel):
+    kind: Literal["roll", "fight", "stop", "end_turn"]
 
 
-class Fight(BaseModel):
-    kind: Literal["fight"]
-
-
-class Stop(BaseModel):
-    kind: Literal["stop"]
-
-
-class EndTurn(BaseModel):
-    kind: Literal["end_turn"]
-
-
-Command = Annotated[
-    Reinforce | Transfer | Attack | Roll | Fight | Stop | EndTurn, Field(discriminator="kind")
-]
+Command = Annotated[Reinforce | Transfer | Attack | Simple, Field(discriminator="kind")]
 
 
 class NewGame(BaseModel):
-    country: str  # the human's starting country
+    country: str
 
 
 class GameSummary(BaseModel):
     id: str
     created: datetime
-    human: str  # player id
-    country: str  # the human's starting country
+    human: str
+    country: str
     turn: Turn
-    countries: int  # held by the human
+    countries: int
 
 
 class GameView(BaseModel):
     id: str
-    owner: str  # user id
+    owner: str
     state: State
-    events: list[Event]  # after the request's `after`, or produced by this request
+    events: list[Event]
 
 
 @router.get("/countries")
-def list_countries() -> list[CountryInfo]:
+def list_countries() -> list[Country]:
     return list(COUNTRIES.values())
 
 
@@ -92,10 +76,8 @@ async def create_game(body: NewGame, user: Annotated[User, Depends(current_user)
     if body.country not in COUNTRIES:
         raise HTTPException(422, "Unknown country")
     others = [c for code, c in COUNTRIES.items() if code != body.country]
-    chosen = [COUNTRIES[body.country], *random.sample(others, COUNTRIES_PER_GAME - 1)]
-    countries = [
-        Country(code=c.code, name=c.name, value=c.value, owner="", soldiers=0) for c in chosen
-    ]
+    chosen = [COUNTRIES[body.country], *random.sample(others, len(NPC_NAMES))]
+    countries = [c.model_copy() for c in chosen]
     game = Game.new(user.username, countries)
     npc.run(game)
     doc = {
@@ -129,8 +111,7 @@ async def list_games(user: Annotated[User, Depends(current_user)]) -> list[GameS
 
 @router.get("/games/{game_id}")
 async def get_game(game_id: str, after: Annotated[int, Query(ge=0, le=ALL_EVENTS)] = 0) -> GameView:
-    """Anyone with the link may watch. Returns the events after sequence number `after`."""
-    # events[i].seq == i + 1, so skipping `after` entries yields exactly the events after it.
+    # events[i].seq == i + 1, so skipping `after` entries yields the events after it.
     doc = await load(game_id, {"events": {"$slice": [after, ALL_EVENTS]}})
     events = [Event.model_validate(e) for e in doc["events"]]
     return view(doc, State.model_validate(doc["state"]), events)
@@ -172,19 +153,19 @@ def apply(game: Game, command: Command) -> None:
             game.transfer(command.source, command.target, command.soldiers)
         case Attack():
             game.attack(command.source, command.target)
-        case Roll():
+        case Simple(kind="roll"):
             game.roll()
-        case Fight():
+        case Simple(kind="fight"):
             game.fight()
-        case Stop():
+        case Simple(kind="stop"):
             game.stop()
-        case EndTurn():
+        case Simple(kind="end_turn"):
             game.end_turn()
 
 
 async def load(game_id: str, projection: db.Document) -> db.Document:
-    query = {"_id": ObjectId(game_id)} if ObjectId.is_valid(game_id) else None
-    doc = await db.games.find_one(query, projection) if query else None
+    valid = ObjectId.is_valid(game_id)
+    doc = await db.games.find_one({"_id": ObjectId(game_id)}, projection) if valid else None
     if doc is None:
         raise HTTPException(404, "No such game")
     return doc

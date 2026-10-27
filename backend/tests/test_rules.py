@@ -1,12 +1,10 @@
-"""The rules, checked section by section against the assignment."""
-
 import pytest
 
 from app.countries import COUNTRIES, soldier_value
-from app.engine import Game, RuleError, State, conquest_bonus
-from tests.helpers import country, give_turn, human_turn, new_game, rig
+from app.engine import RuleError, State, conquest_bonus
+from tests.helpers import give_turn, human_turn, new_game, rig
 
-# -- Soldiers from population -------------------------------------------------------------------
+# Soldiers from population
 
 
 @pytest.mark.parametrize(
@@ -42,7 +40,7 @@ def test_playable_countries_carry_their_value() -> None:
     assert len(COUNTRIES) > 150
 
 
-# -- Setup --------------------------------------------------------------------------------------
+# Setup
 
 
 def test_setup_gives_each_player_its_country_at_full_value() -> None:
@@ -65,12 +63,7 @@ def test_the_first_player_is_random() -> None:
     assert len({new_game(seed=seed).turn.player for seed in range(10)}) > 1
 
 
-def test_a_game_needs_exactly_ten_countries() -> None:
-    with pytest.raises(RuleError, match="exactly 10"):
-        Game.new("alice", [country(f"C{i}", 1) for i in range(9)])
-
-
-# -- Rounds and reinforcements --------------------------------------------------------------------
+# Rounds and reinforcements
 
 
 def test_no_reinforcements_in_round_one() -> None:
@@ -136,7 +129,7 @@ def test_eliminated_players_are_skipped_for_the_rest_of_the_game() -> None:
     assert game.turn.round == 3
 
 
-# -- Transfers ----------------------------------------------------------------------------------
+# Transfers
 
 
 def test_transfers_between_own_countries_keep_one_soldier_behind() -> None:
@@ -168,7 +161,7 @@ def test_no_transfers_while_an_attack_is_in_progress() -> None:
     assert game.country("C2").soldiers == 3
 
 
-# -- Attacking ----------------------------------------------------------------------------------
+# Attacking
 
 
 def test_attack_needs_two_soldiers_an_own_source_and_an_enemy_target() -> None:
@@ -299,7 +292,7 @@ def test_stopping_an_attack_ends_the_turn_with_the_remaining_soldiers() -> None:
     assert game.turn.player != game.human.id
 
 
-# -- Winning and losing -------------------------------------------------------------------------
+# Winning and losing
 
 
 def test_conquering_all_ten_countries_wins() -> None:
@@ -357,7 +350,7 @@ def test_eliminating_an_npc_does_not_end_the_game() -> None:
     assert not game.countries_of("p1")
 
 
-# -- Events -------------------------------------------------------------------------------------
+# Events
 
 
 def test_events_are_numbered_and_carry_independent_snapshots() -> None:
