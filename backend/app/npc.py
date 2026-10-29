@@ -71,7 +71,7 @@ def play_turn(game: Game) -> None:
             source.code,
             target.code,
             source.soldiers // 2,
-            reason=f"Without a garrison {target.name} would be retaken at once.",
+            reason=f"{target.name} needs more soldiers to hold.",
         )
     game.end_turn()
 

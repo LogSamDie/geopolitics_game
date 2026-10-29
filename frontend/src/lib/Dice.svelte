@@ -74,9 +74,5 @@
       opacity: 1;
       transform: translateY(0.1em) rotate(12deg);
     }
-
-    to {
-      transform: none;
-    }
   }
 </style>

@@ -15,7 +15,6 @@ from app.main import app
 
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 ANN = {"username": "ann", "password": "secret1"}
-BOB = {"username": "bob", "password": "secret2"}
 
 
 def test_password_hashes_verify_only_the_right_password() -> None:
@@ -134,7 +133,7 @@ def test_play_a_game_through_the_api(client: TestClient) -> None:
     client.post("/api/auth/logout")
     assert client.get(f"/api/games/{game_id}").status_code == 200
     assert client.post(url, json={"kind": "end_turn"}).status_code == 401
-    client.post("/api/auth/register", json=BOB)
+    client.post("/api/auth/register", json={"username": "bob", "password": "secret2"})
     assert client.get("/api/games").json() == []
     assert client.get(f"/api/games/{game_id}").status_code == 200
     assert client.post(url, json={"kind": "end_turn"}).status_code == 403

@@ -26,7 +26,7 @@
   let headElement: HTMLDivElement
   let head: Marker
   let map = $state<MapLibre>() // set once the world is loaded
-  const tags: Record<string, HTMLDivElement> = {}
+  const tags = $state<Record<string, HTMLDivElement>>({})
   const centres: Record<string, [number, number]> = {}
 
   /** A dash pattern shifted along the line, which is how dashes march. */
@@ -61,7 +61,6 @@
       fitBoundsOptions: { padding: 16 },
       attributionControl: false,
       dragRotate: false,
-      pitchWithRotate: false,
       renderWorldCopies: false,
       maxZoom: 6,
     })
@@ -103,7 +102,7 @@
           return code in countries ? code : undefined
         }
         created.on('click', (e) => {
-          const code = codeAt(e.point)
+          const code = e.originalEvent.target === created.getCanvas() && codeAt(e.point)
           if (code) onselect?.(code)
         })
         created.on('mousemove', (e) => {
@@ -190,17 +189,17 @@
 </div>
 
 {#each Object.values(countries) as country (country.code)}
-  {@const owner = colorOf(country.owner)}
+  {@const color = colorOf(country.owner)}
   <div
     class="tag"
     class:marked={marked.includes(country.code)}
     class:clickable={onselect}
-    style:--owner={owner}
-    style:--on-owner={textOn(owner)}
+    style:--owner={color}
+    style:--on-owner={textOn(color)}
     bind:this={tags[country.code]}
     role="button"
     tabindex="0"
-    onclick={(e) => (e.stopPropagation(), onselect?.(country.code))}
+    onclick={() => onselect?.(country.code)}
     onkeydown={(e) => e.key === 'Enter' && onselect?.(country.code)}
   >
     <span class="name">{country.name}</span>
@@ -210,7 +209,6 @@
 
 <style>
   .map {
-    width: 100%;
     height: 100%;
   }
 
@@ -239,15 +237,11 @@
     gap: 0.35rem;
     padding: 0.1rem 0.15rem 0.1rem 0.45rem;
     background: var(--panel);
-    color: var(--ink);
     border: 1px solid var(--border);
     border-radius: 2px;
     font-size: 11px;
     line-height: 1.2;
     white-space: nowrap;
-    transition:
-      box-shadow 0.15s,
-      border-color 0.15s;
   }
 
   .tag.clickable {
@@ -273,7 +267,6 @@
     background: var(--owner);
     color: var(--on-owner);
     border: 1px solid var(--border);
-    border-radius: 1px;
     font-size: 12px;
     font-weight: 700;
     animation: stamp 0.25s ease-out;

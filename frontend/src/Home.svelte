@@ -45,7 +45,12 @@
 
   const login = () => attempt(async () => onuser(await api.login(username, password)))
   const register = () => attempt(async () => onuser(await api.register(username, password)))
-  const logout = () => attempt(async () => (await api.logout(), (password = ''), onuser(null)))
+  const logout = () =>
+    attempt(async () => {
+      await api.logout()
+      password = ''
+      onuser(null)
+    })
   const start = () => attempt(async () => navigate(`/games/${(await api.createGame(chosen)).id}`))
 
   function describe(game: GameSummary): string {
@@ -58,7 +63,12 @@
   <h1>Geopoly</h1>
 
   {#if user === null}
-    <form onsubmit={(e) => (e.preventDefault(), login())}>
+    <form
+      onsubmit={(e) => {
+        e.preventDefault()
+        login()
+      }}
+    >
       <h2>Log in or sign up</h2>
       <label>
         Username
@@ -142,24 +152,11 @@
 
   li {
     display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-  }
-
-  li::after {
-    content: '';
-    order: 1;
-    flex: 1;
-    border-bottom: 1px dotted var(--rule);
-    transform: translateY(-0.3em);
-  }
-
-  li a {
-    white-space: nowrap;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
   li span {
-    order: 2;
     color: var(--muted);
     text-align: right;
   }

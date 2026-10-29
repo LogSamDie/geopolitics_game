@@ -17,15 +17,9 @@ def simulate(attackers: int, defenders: int, rng: random.Random) -> bool:
 
 def test_win_probability_matches_simulation() -> None:
     rng = random.Random(7)
-    for attackers, defenders in [(2, 1), (3, 2), (5, 5), (10, 2), (4, 8)]:
+    for attackers, defenders in [(2, 1), (3, 2), (5, 5), (10, 2), (4, 8), (100, 90)]:
         wins = sum(simulate(attackers, defenders, rng) for _ in range(4000)) / 4000
         assert abs(npc.win_probability(attackers, defenders) - wins) < 0.03
-
-
-def test_win_probability_above_small_armies_matches_simulation() -> None:
-    rng = random.Random(11)
-    wins = sum(simulate(100, 90, rng) for _ in range(1000)) / 1000
-    assert abs(npc.win_probability(100, 90) - wins) < 0.05
 
 
 def test_win_probability_edges() -> None:
@@ -80,7 +74,7 @@ def test_npc_moves_half_its_army_into_a_conquest() -> None:
     npc.play_turn(game)
     moved = game.events[-2]
     assert moved.kind == "transferred"
-    assert moved.reason is not None and "garrison" in moved.reason
+    assert moved.reason is not None and "to hold" in moved.reason
     assert [c.soldiers for c in moved.countries] == [5, 6]  # 9 - 4, and the bonus of 2 + 4
 
 

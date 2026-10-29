@@ -32,8 +32,8 @@ cd frontend && npm run check && npm run build
 
 The API tests need MongoDB. Formatters: `uv run ruff format .` and `npm run format`.
 
-Settings are the environment variables `MONGO_URL` (default `mongodb://localhost:27017`),
-`MONGO_DB` (`geopolitics`) and `STATIC_DIR` (`static`, where the built frontend is served from).
+Settings are the environment variables `MONGO_URL` (default `mongodb://localhost:27017`) and
+`STATIC_DIR` (`static`, where the built frontend is served from).
 
 In VS Code, open the repository root and accept the recommended extensions.
 

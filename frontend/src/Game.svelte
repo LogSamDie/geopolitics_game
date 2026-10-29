@@ -15,7 +15,7 @@
   let { view, user }: Props = $props()
 
   const playback = new Playback(untrack(() => view))
-  const owner = $derived(user?.id === view.owner)
+  const isOwner = $derived(user?.id === view.owner)
   let error = $state('')
   let pending = $state(false)
   let source = $state<string | null>(null)
@@ -41,15 +41,15 @@
   const last = $derived(playback.log.at(-1)!)
   const turn = $derived(last.turn)
   const countries = $derived(Object.values(playback.countries))
-  const mine = $derived(owner && turn.player === playback.human)
-  const myTurn = $derived(mine && !playback.busy && turn.phase !== 'over')
-  const canPick = $derived(myTurn && !pending && turn.phase !== 'attack')
+  const humanToMove = $derived(isOwner && turn.player === playback.human)
+  const canAct = $derived(humanToMove && !playback.busy && turn.phase !== 'over')
+  const canPick = $derived(canAct && !pending && turn.phase !== 'attack')
   const from = $derived(source ? playback.countries[source] : undefined)
   const to = $derived(target ? playback.countries[target] : undefined)
   const limit = $derived(turn.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
   const validAmount = $derived(Number.isInteger(amount) && amount >= 1 && amount <= limit)
   const held = $derived(countries.filter((c) => c.owner === playback.human))
-  const out = $derived(owner && held.length === 0 && countries.some((c) => c.owner !== turn.player))
+  const out = $derived(isOwner && held.length === 0 && countries.some((c) => c.owner !== turn.player))
   const canMove = $derived(held.length > 1 && held.some((c) => c.soldiers > 1))
   const sides = $derived(
     turn.attack && last.kind !== 'transferred' && last.kind !== 'over'
@@ -71,7 +71,7 @@
 
   // A choice made in one turn means nothing in the next, even if that turn was played elsewhere.
   $effect(() => {
-    if (myTurn) return
+    if (canAct) return
     clearChoice()
     error = ''
   })
@@ -87,26 +87,26 @@
 
   const heading = $derived.by(() => {
     if (turn.phase === 'over') {
-      if (owner && turn.winner === playback.human) return 'You won'
-      return `${owner ? 'You lost. ' : ''}${nameOf(turn.winner)} wins`
+      if (isOwner && turn.winner === playback.human) return 'You won'
+      return `${isOwner ? 'You lost. ' : ''}${nameOf(turn.winner)} wins`
     }
     if (out) return 'You are out of the game'
     const round = `Round ${turn.round}: `
-    if (mine && turn.phase === 'attack') return round + 'your attack'
-    if (!myTurn) return round + (mine ? 'your turn' : `${nameOf(turn.player)}'s turn`)
+    if (humanToMove && turn.phase === 'attack') return round + 'your attack'
+    if (!canAct) return round + (humanToMove ? 'your turn' : `${nameOf(turn.player)}'s turn`)
     if (turn.phase === 'reinforce') return round + `place ${soldiers(turn.reinforcements)}`
     return round + (turn.attack ? 'your attack is over' : 'your move')
   })
 
   const speedLabel = $derived.by(() => {
     if (playback.fast) return 'Normal speed'
-    if (ended || !owner || mine) return 'Fast-forward'
+    if (ended || !isOwner || humanToMove) return 'Fast-forward'
     if (out) return 'Fast-forward to the end'
     return playback.over ? 'Fast-forward' : 'Fast-forward to my turn'
   })
 
   const hint = $derived.by(() => {
-    if (!myTurn) return ''
+    if (!canAct) return ''
     if (turn.phase === 'reinforce')
       return from ? `${from.name} has ${soldiers(from.soldiers)}. How many to add?` : 'Pick one of your countries.'
     if (turn.phase !== 'action') return ''
@@ -165,10 +165,10 @@
   </div>
 
   <div class="panel">
-    <h3 class:result={out || turn.phase === 'over'}>
+    <h2 class:result={out || turn.phase === 'over'}>
       <i class="swatch" style:--owner={colorOf(out ? playback.human : turn.player)}></i>
       {heading}
-    </h3>
+    </h2>
     {#if sides}
       <div class="fight">
         <div class="sides">
@@ -189,7 +189,7 @@
       <button class="speed" onclick={() => playback.toggleSpeed()}>{speedLabel}</button>
     {/if}
     <fieldset disabled={pending}>
-      {#if !owner}
+      {#if !isOwner}
         <p class="muted">
           You are watching this game.
           {#if !user}<a href="/">Log in</a> to start your own.{/if}
@@ -199,14 +199,14 @@
       {:else if out}
         <p class="muted">The others play on. Round {turn.round}: {nameOf(turn.player)}'s turn.</p>
       {/if}
-      {#if mine && turn.phase === 'attack' && !playback.over}
+      {#if humanToMove && turn.phase === 'attack' && !playback.over}
         <!-- Locked during the pause after a result, so a double click is one click. -->
         <div class="row">
           <button class="primary" disabled={playback.running} onclick={() => play({ kind: 'roll' })}>Roll</button>
           <button disabled={playback.running} onclick={() => play({ kind: 'fight' })}>Roll to the end</button>
           <button disabled={playback.running} onclick={() => play({ kind: 'stop' })}>Stop and end turn</button>
         </div>
-      {:else if myTurn && turn.phase === 'reinforce' && from}
+      {:else if canAct && turn.phase === 'reinforce' && from}
         <div class="row">
           <input type="number" inputmode="numeric" min="1" max={limit} bind:value={amount} />
           <button
@@ -222,7 +222,7 @@
             </button>
           {/if}
         </div>
-      {:else if myTurn && turn.phase === 'action'}
+      {:else if canAct && turn.phase === 'action'}
         {#if from && to && to.owner === playback.human}
           <div class="row">
             <span>{from.name} to {to.name}:</span>
@@ -283,7 +283,7 @@
           onclick={() => select(country.code)}
         >
           <span><i class="swatch" style:--owner={colorOf(country.owner)}></i> {country.name}</span>
-          <small class="muted">{owner && country.owner === playback.human ? 'you' : nameOf(country.owner)}</small>
+          <small class="muted">{isOwner && country.owner === playback.human ? 'you' : nameOf(country.owner)}</small>
           <b>{country.soldiers}</b>
         </button>
       {/each}
@@ -308,16 +308,13 @@
   header {
     grid-area: header;
     display: flex;
-    flex-wrap: wrap;
+    justify-content: space-between;
     align-items: center;
-    gap: 0.4rem 1.25rem;
-    min-height: 2.75rem;
     padding: 0.4rem 1rem;
     border-bottom: 1px solid var(--ink);
   }
 
   .brand {
-    margin-right: auto;
     font-variant: small-caps;
     letter-spacing: 0.06em;
     font-weight: 700;
@@ -331,7 +328,6 @@
 
   .board {
     grid-area: board;
-    min-height: 0;
   }
 
   .panel {
@@ -344,7 +340,6 @@
     padding: 0.6rem 0.9rem;
     background: var(--panel);
     border: 1px solid var(--ink);
-    box-shadow: 0 0 0 3px var(--panel);
     display: flex;
     flex-direction: column;
   }
@@ -364,7 +359,8 @@
     align-items: center;
   }
 
-  .sides span {
+  .sides span,
+  .countries span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -374,18 +370,24 @@
     text-align: right;
   }
 
-  .panel p {
-    margin: 0.5rem 0 0;
+  .panel h2 {
+    margin: 0 0 0.25rem;
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  .panel .result {
+    font-size: 20px;
+  }
+
+  input[type='number'] {
+    width: 4.5rem;
   }
 
   .speed {
     align-self: flex-end;
     min-width: 13em;
     margin-top: 0.5rem;
-  }
-
-  .result {
-    font-size: 20px;
   }
 
   .replay {
@@ -416,7 +418,6 @@
     grid-area: aside;
     display: grid;
     grid-template-rows: auto minmax(10rem, 1fr);
-    min-height: 0;
     padding: 0.75rem 1rem;
     background: var(--panel);
     border-left: 1px solid var(--ink);
@@ -465,16 +466,10 @@
     font-weight: 700;
   }
 
-  .countries span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   @media (max-width: 800px), (max-height: 500px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto max(40dvh, 16rem) auto auto auto;
+      grid-template-rows: auto max(40dvh, 16rem);
       grid-template-areas:
         'header'
         'board'
@@ -484,11 +479,6 @@
       height: auto;
     }
 
-    header {
-      gap: 0.5rem;
-      padding-inline: 0.75rem;
-    }
-
     .panel {
       grid-area: panel;
       justify-self: stretch;
@@ -496,10 +486,9 @@
       min-height: 10rem;
       margin: 0;
       border-width: 1px 0 0;
-      box-shadow: none;
     }
 
-    .panel h3 {
+    .panel h2 {
       order: -3;
     }
 

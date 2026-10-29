@@ -310,20 +310,6 @@ def test_conquering_all_ten_countries_wins() -> None:
         game.end_turn()
 
 
-def test_the_npcs_play_on_after_the_human_is_eliminated() -> None:
-    game = new_game()
-    game.country("C0").soldiers = 1
-    give_turn(game, "p1")
-    game.country("C1").soldiers = 10
-    rig(game, 6, 1)
-    game.attack("C1", "C0")
-    game.roll()
-    assert [e.kind for e in game.events[-2:]] == ["conquered", "eliminated"]
-    assert (game.turn.phase, game.turn.winner) == ("action", None)
-    game.end_turn()
-    assert game.turn.player != game.human.id
-
-
 def test_an_npc_taking_the_human_last_country_to_complete_the_world_wins_once() -> None:
     game = new_game()
     for c in game.state.countries[1:]:

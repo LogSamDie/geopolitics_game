@@ -9,17 +9,12 @@
   --land: #ebe2cb;
   --border: #7a6652;
   font:
-    15px/1.5 'Iowan Old Style',
-    Georgia,
-    'Palatino Linotype',
-    'Book Antiqua',
+    15px/1.5 Georgia,
     'Noto Serif',
-    'Liberation Serif',
     serif;
   font-variant-numeric: lining-nums tabular-nums;
   color: var(--ink);
   background: var(--paper);
-  color-scheme: light;
   accent-color: var(--ink);
 }
 
@@ -33,16 +28,13 @@ body {
 }
 
 h1,
-h2,
-h3 {
+h2 {
   margin: 0 0 0.5rem;
   font-weight: 400;
-  line-height: 1.25;
 }
 
 h1 {
   font-size: 28px;
-  padding-bottom: 0.4rem;
   border-bottom: 3px double var(--ink);
 }
 
@@ -50,13 +42,8 @@ h2 {
   font-size: 20px;
 }
 
-h3 {
-  font-size: 15px;
-  font-weight: 700;
-}
-
 p {
-  margin: 0 0 0.5rem;
+  margin: 0.5rem 0 0;
 }
 
 a {
@@ -69,35 +56,23 @@ select {
   font: inherit;
   color: var(--ink);
   padding: 0.3rem 0.7rem;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--rule);
   border-radius: 2px;
   background: var(--panel);
 }
 
-input,
-select {
-  border-color: var(--rule);
-}
-
-input[type='number'] {
-  width: 4.5rem;
-}
-
 button {
+  border-color: var(--ink);
   cursor: pointer;
 }
 
 button:hover {
-  background: #e9dfc8;
+  background: var(--paper);
 }
 
 button.primary {
   background: var(--ink);
   color: var(--panel);
-}
-
-button.primary:enabled:hover {
-  background: #46382a;
 }
 
 button:disabled {
@@ -107,17 +82,11 @@ button:disabled {
   cursor: default;
 }
 
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
 .muted {
   color: var(--muted);
 }
 
 .error {
-  margin-top: 0.5rem;
   color: var(--accent);
 }
 
@@ -140,7 +109,6 @@ button:disabled {
   margin-right: 0.2em;
   background: var(--owner);
   border: 1px solid var(--border);
-  vertical-align: -0.02em;
 }
 
 @media (pointer: coarse) {
@@ -155,11 +123,7 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 1ms !important;
-    animation-delay: 0s !important;
-    transition-duration: 1ms !important;
+  * {
+    animation: none !important;
   }
 }

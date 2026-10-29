@@ -19,7 +19,7 @@ export class Playback {
     // its end, unless the player was out before ever moving and has yet to see what happened.
     const lastMove = view.events.findLastIndex((e) => e.turn.player === this.human && e.kind !== 'turn')
     this.shown = this.over && lastMove >= 0 ? view.events.length : Math.max(1, lastMove + 1)
-    this.play()
+    this.step()
   }
 
   get seq(): number {
@@ -48,7 +48,7 @@ export class Playback {
     // A batch that skips ahead (another device moved) waits for the poll, which brings all of it.
     if (fresh[0]?.seq !== this.seq + 1) return
     this.events.push(...fresh)
-    this.play()
+    if (!this.running) this.step()
   }
 
   pause(): void {
@@ -62,16 +62,12 @@ export class Playback {
     this.pause()
     if (stopping) return
     if (!this.busy) this.shown = 0
-    this.play()
+    this.step()
   }
 
   toggleSpeed(): void {
     this.fast = !this.fast
     if (this.running) this.wait(this.events[this.shown - 1])
-  }
-
-  private play(): void {
-    if (!this.running) this.step()
   }
 
   private step(): void {

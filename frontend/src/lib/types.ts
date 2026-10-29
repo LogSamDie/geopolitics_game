@@ -47,16 +47,10 @@ export interface GameEvent {
   turn: Turn
 }
 
-export interface State {
-  players: Player[]
-  countries: Country[]
-  turn: Turn
-}
-
 export interface GameView {
   id: string
   owner: string
-  state: State
+  state: { players: Player[] }
   events: GameEvent[]
 }
 

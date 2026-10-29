@@ -4,10 +4,8 @@ from itertools import cycle
 
 from app.engine import Country, Game, Phase
 
-DEFAULT_VALUES = (9, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-
-def new_game(values: Sequence[int] = DEFAULT_VALUES, seed: int = 1) -> Game:
+def new_game(values: Sequence[int] = (9, 1, 2, 3, 4, 5, 6, 7, 8, 9), seed: int = 1) -> Game:
     """A game where the human "alice" (p0) owns C0 and NPC p<i> owns C<i>."""
     countries = [Country(code=f"C{i}", name=f"C{i}", value=v) for i, v in enumerate(values)]
     return Game.new("alice", countries, random.Random(seed))

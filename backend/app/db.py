@@ -8,7 +8,7 @@ Document = dict[str, Any]
 client: AsyncMongoClient[Document] = AsyncMongoClient(
     os.environ.get("MONGO_URL", "mongodb://localhost:27017"), serverSelectionTimeoutMS=3000
 )
-database = client[os.environ.get("MONGO_DB", "geopolitics")]
+database = client["geopolitics"]
 users = database["users"]
 sessions = database["sessions"]
 games = database["games"]
