@@ -43,7 +43,7 @@ In VS Code, open the repository root and accept the recommended extensions.
 - **Frontend**: Svelte 5 with TypeScript, built by Vite, MapLibre GL JS for the board.
 - **Database**: MongoDB, three collections: `users`, `sessions`, `games`.
 - **Deployment**: one multi-stage Docker image that builds the frontend, then serves it from
-  the API process.
+  the API process. Every push to `main` publishes it to `ghcr.io/logsamdie/geopolitics_game`.
 
 ## How it works
 
