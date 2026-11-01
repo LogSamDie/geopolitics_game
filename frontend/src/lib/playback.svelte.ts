@@ -64,9 +64,7 @@ export class Playback {
 
   /** Stop a running replay, else go on from here, or from the top at the end. */
   toggle(): void {
-    const stopping = this.playing
-    this.pause()
-    if (stopping) return
+    if (this.playing) return this.pause()
     if (!this.busy) this.shown = 0
     this.step()
   }

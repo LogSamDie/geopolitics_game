@@ -1,5 +1,3 @@
-export type Phase = 'reinforce' | 'action' | 'attack' | 'over'
-
 export type Kind =
   | 'started'
   | 'turn'
@@ -31,7 +29,7 @@ export interface Country {
 export interface Turn {
   player: string
   round: number
-  phase: Phase
+  phase: 'reinforce' | 'action' | 'attack' | 'over'
   reinforcements: number
   attack: { source: string; target: string } | null
   winner: string | null
@@ -58,7 +56,7 @@ export interface GameView {
 
 export interface Note {
   seq: number
-  kind: 'line' | 'taunt' | 'advice'
+  kind: 'line' | 'letter' | 'advice'
   text: string
   player: string | null
   round: number | null

@@ -2,11 +2,7 @@
   import { colorOf, textOn } from './colors'
   import type { Player } from './types'
 
-  interface Props {
-    text: string
-    players: Player[]
-  }
-  let { text, players }: Props = $props()
+  let { text, players }: { text: string; players: Player[] } = $props()
 
   // Lines may capitalise a username.
   const owners = $derived(
@@ -24,7 +20,7 @@
   })
 </script>
 
-{#each parts as part, i (i)}
+{#each parts as part}
   {@const owner = owners.get(part)}
   {#if owner}
     {@const color = colorOf(owner)}

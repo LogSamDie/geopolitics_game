@@ -3,7 +3,7 @@
 from math import comb
 from typing import NamedTuple
 
-from .engine import Country, Game, conquest_bonus
+from .engine import PERSONALITIES, Country, Game, conquest_bonus
 
 
 def win_probability(attackers: int, defenders: int) -> float:
@@ -12,28 +12,6 @@ def win_probability(attackers: int, defenders: int) -> float:
     """
     flips = attackers + defenders - 2
     return sum(comb(flips, k) for k in range(defenders, flips + 1)) / (1 << flips)
-
-
-class Personality(NamedTuple):
-    voice: str
-    attack_odds: float  # the least chance of winning it starts an attack with
-    stop_odds: float  # it withdraws below this
-    garrison: float  # the share of the army it moves into a conquest
-
-
-PERSONALITIES = {
-    "Marshal Tundra": Personality("pompous, quotes their own memoirs", 0.5, 0.25, 0.5),
-    "General Isthmus": Personality("weary bureaucrat, cites regulations", 0.5, 0.25, 0.5),
-    "Admiral Atoll": Personality("reckless sea dog, loves a gamble", 0.35, 0.15, 0.25),
-    "Colonel Steppe": Personality("cautious and gloomy, expects the worst", 0.65, 0.4, 0.75),
-    "Baroness Delta": Personality("haughty aristocrat, finds war vulgar", 0.35, 0.15, 0.25),
-    "President Mesa": Personality("slippery politician, always campaigning", 0.65, 0.4, 0.75),
-    "Commodore Fjord": Personality("laconic, says as little as possible", 0.65, 0.4, 0.75),
-    "Chancellor Savanna": Personality("cheerfully menacing, loves a metaphor", 0.35, 0.15, 0.25),
-    "Generalissimo Oasis": Personality(
-        "vain, refers to themselves in the third person", 0.5, 0.25, 0.5
-    ),
-}
 
 
 class Option(NamedTuple):

@@ -33,9 +33,7 @@ async def save_events(game_id: ObjectId, batch: list[Document]) -> None:
     )
 
 
-async def load_events(
-    game_id: ObjectId, after: int = 0, before: float = math.inf
-) -> list[Document]:
+async def load_events(game_id: ObjectId, after: int, before: float = math.inf) -> list[Document]:
     """The events with a number between these two, in order."""
     query = {"game": game_id, "last": {"$gt": after}, "first": {"$lt": before}}
     records = await events.find(query).sort("last").to_list()

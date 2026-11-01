@@ -30,4 +30,3 @@ def give_turn(game: Game, player_id: str, phase: Phase = "action") -> None:
     """Hand the turn to a player directly, bypassing the order."""
     game.state.turn.player = player_id
     game.state.turn.phase = phase
-    game.state.turn.attack = None

@@ -10,11 +10,7 @@
   import { Playback } from './lib/playback.svelte'
   import type { Command, GameView, Note, Route, User } from './lib/types'
 
-  interface Props {
-    view: GameView
-    user: User | null
-  }
-  let { view, user }: Props = $props()
+  let { view, user }: { view: GameView; user: User | null } = $props()
 
   const playback = new Playback(untrack(() => view))
   const isOwner = $derived(user?.id === view.owner)
@@ -88,10 +84,10 @@
   const advice = $derived(humanToMove ? told.find((n) => n.kind === 'advice' && n.round === turn.round) : undefined)
   // A commander's message waits for a calm moment in the player's move, or goes out once they
   // have no moves left. It is gone after their next move, and from replays.
-  const taunt = $derived.by(() => {
+  const letter = $derived.by(() => {
     if (!isOwner || ended || (held.length && (!canAct || source || pending))) return
     const move = playback.log.findLast((e) => e.turn.player === playback.human && e.kind !== 'turn')
-    return told.findLast((n) => n.kind === 'taunt' && n.seq >= (move?.seq ?? 0) && n.seq > dismissed)
+    return told.findLast((n) => n.kind === 'letter' && n.seq >= (move?.seq ?? 0) && n.seq > dismissed)
   })
   const marked = $derived(route ? [route.source, route.target] : source ? [source] : [])
 
@@ -182,10 +178,9 @@
 
   function select(code: string): void {
     error = ''
-    const own = playback.countries[code].owner === playback.human
     if (code === source) clearChoice()
     else if (turn.phase === 'action' && source) target = code
-    else if (own) source = code
+    else if (playback.countries[code].owner === playback.human) source = code
   }
 
   const open = (dialog: HTMLDialogElement) => dialog.showModal()
@@ -205,7 +200,7 @@
 
 <div class="layout">
   <header>
-    <a class="brand" href="/">Geopoly</a>
+    <a class="brand caps" href="/">Geopoly</a>
     <button class="copy" onclick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
   </header>
 
@@ -215,14 +210,14 @@
 
   <div class="panel">
     <h2 class:result={out || turn.phase === 'over'}>
-      <i class="swatch" style:--owner={colorOf(out ? playback.human : turn.player)}></i>
+      <i class="swatch" style:background={colorOf(out ? playback.human : turn.player)}></i>
       {heading}
     </h2>
     {#if sides}
       <div class="fight">
         <div class="sides">
           {#each sides as side (side.code)}
-            <span><i class="swatch" style:--owner={colorOf(side.owner)}></i> {side.name}</span>
+            <span><i class="swatch" style:background={colorOf(side.owner)}></i> {side.name}</span>
             <b>{side.soldiers}</b>
           {/each}
         </div>
@@ -330,10 +325,10 @@
     </div>
   {/if}
 
-  {#if taunt}
-    <dialog use:open onclose={() => (dismissed = taunt.seq)}>
-      <h2><i class="swatch" style:--owner={colorOf(taunt.player!)}></i> {nameOf(taunt.player)} writes</h2>
-      <p>“<Named text={taunt.text} players={view.state.players} />”</p>
+  {#if letter}
+    <dialog use:open onclose={() => (dismissed = letter.seq)}>
+      <h2><i class="swatch" style:background={colorOf(letter.player!)}></i> {nameOf(letter.player)} writes</h2>
+      <p>“<Named text={letter.text} players={view.state.players} />”</p>
       <form method="dialog"><button class="primary">Dismiss</button></form>
     </dialog>
   {/if}
@@ -347,7 +342,7 @@
           disabled={!canPick}
           onclick={() => select(country.code)}
         >
-          <span><i class="swatch" style:--owner={colorOf(country.owner)}></i> {country.name}</span>
+          <span><i class="swatch" style:background={colorOf(country.owner)}></i> {country.name}</span>
           <small class="muted">{isOwner && country.owner === playback.human ? 'you' : nameOf(country.owner)}</small>
           <b>{country.soldiers}</b>
         </button>
@@ -355,12 +350,12 @@
     </section>
 
     <Feed title="Commentary" size={feed.length}>
-      {#each feed as note, i (i)}
+      {#each feed as note}
         {#if note}
           <li class={note.kind}>
             {#if note.kind === 'advice'}
               {@render advised(note)}
-            {:else if note.kind === 'taunt'}
+            {:else if note.kind === 'letter'}
               <Named text="{nameOf(note.player)}: “{note.text}”" players={view.state.players} />
             {:else}
               <Named text={note.text} players={view.state.players} />
@@ -400,9 +395,6 @@
   }
 
   .brand {
-    font-variant: small-caps;
-    letter-spacing: 0.06em;
-    font-weight: 700;
     color: var(--ink);
     text-decoration: none;
   }
@@ -411,7 +403,7 @@
     min-width: 7em;
   }
 
-  .taunt {
+  .letter {
     font-style: italic;
   }
 
@@ -616,8 +608,7 @@
 
     .panel {
       grid-area: panel;
-      justify-self: stretch;
-      width: auto;
+      width: 100%;
       min-height: 10rem;
       margin: 0;
       border-width: 1px 0 0;
@@ -639,10 +630,7 @@
       display: block;
     }
 
-    .fight {
-      flex-wrap: wrap;
-    }
-
+    .fight,
     .replay {
       flex-wrap: wrap;
     }

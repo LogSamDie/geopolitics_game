@@ -82,6 +82,12 @@ button:disabled {
   cursor: default;
 }
 
+.caps {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -107,7 +113,6 @@ button:disabled {
   width: 0.7em;
   height: 0.7em;
   margin-right: 0.2em;
-  background: var(--owner);
   border: 1px solid var(--border);
 }
 

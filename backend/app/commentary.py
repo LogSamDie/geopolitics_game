@@ -12,8 +12,8 @@ from bson import ObjectId
 from pydantic import BaseModel
 
 from . import db
-from .engine import Event, Game, Player, conquest_bonus
-from .npc import PERSONALITIES, win_probability
+from .engine import PERSONALITIES, Event, Game, Player, conquest_bonus
+from .npc import win_probability
 
 SYSTEM_PROMPT = """You are the war correspondent of an imaginary world war, played as a board game \
 between ten real countries. Write the chronicle of one battle, one line for each numbered event.
@@ -38,7 +38,7 @@ right one by their full name, and name no real living person.
 Reply with JSON mapping each event number to its line, like this:
 {"12": "Peruvian mule trains climb the Altiplano at dawn.", "13": "The first pass falls."}"""
 
-TAUNT_PROMPT = """You are a commander in an imaginary world war between real countries, writing a
+LETTER_PROMPT = """You are a commander in an imaginary world war between real countries, writing a
 short letter to your opponent right after a clash. Write 40 to 70 words, in character, that are
 genuinely funny and surprising.
 Build the letter on one specific idea: a real detail of these places (food, history, weather,
@@ -46,6 +46,7 @@ exports, famous oddities) turned into a petty complaint, a mock-formal demand, a
 running joke. Do not just gloat. No greeting or signature.
 Use neutral pronouns. Never mention dice, rolls, turns, rounds or that this is a game.
 Name no real living person. Never use a long em dash. No gore or cruelty.
+If you have written to them before, carry on a running joke or grudge from those letters.
 Reply with JSON like this: {"message": "Your letter."}"""
 
 ADVICE_PROMPT = """You are the commanders advising a player in an imaginary world war board game.
@@ -58,10 +59,10 @@ locks: defaultdict[ObjectId, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 class Note(BaseModel):
     seq: int  # the event it belongs to
-    kind: Literal["line", "taunt", "advice"]
+    kind: Literal["line", "letter", "advice"]
     text: str
-    player: str | None = None  # who sent a taunt
-    round: int | None = None  # of a taunt or advice, as those are rationed
+    player: str | None = None  # who sent a letter
+    round: int | None = None  # of a letter or advice, as those are rationed
 
 
 def jobs(game: Game) -> list[list[Event]]:
@@ -99,14 +100,14 @@ async def ask(system: str, prompt: str, max_tokens: int, thinking: bool = False)
     return dict(json.loads(response.json()["choices"][0]["message"]["content"]))
 
 
-def taunter(battle: list[Event], players: list[Player]) -> Player | None:
+def sender(battle: list[Event], players: list[Player]) -> Player | None:
     """The NPC with something to say after a country changed hands between them and the human."""
     rolled = next((e for e in battle if e.kind == "rolled"), None)
     if not rolled or not any(e.kind == "conquered" for e in battle):
         return None
     sides = {rolled.turn.player, rolled.countries[1].owner}  # from before the conquest
-    fighters = [p for p in players if p.id in sides]
-    return next((p for p in fighters if p.npc), None) if any(not p.npc for p in fighters) else None
+    npcs = [p for p in players if p.npc and p.id in sides]
+    return npcs[0] if len(npcs) == 1 else None
 
 
 def prompt_for(battle: list[Event], earlier: list[db.Document], story: list[str]) -> str:
@@ -119,12 +120,10 @@ def prompt_for(battle: list[Event], earlier: list[db.Document], story: list[str]
     return "\n\n".join(s for s in sections if s)
 
 
-async def write_lines(game_id: ObjectId, job: list[Event]) -> list[Note]:
+async def write_lines(game_id: ObjectId, job: list[Event], notes: list[db.Document]) -> list[Note]:
     first = job[0].seq
     earlier = await db.load_events(game_id, first - 41, first)
-    doc = await db.games.find_one({"_id": game_id}, {"notes": 1})
-    assert doc is not None
-    told = [n["text"] for n in doc.get("notes", []) if n["kind"] == "line"][-4:]
+    told = [n["text"] for n in notes if n["kind"] == "line"][-4:]
     reply = await ask(SYSTEM_PROMPT, prompt_for(job, earlier, told), 100 + 60 * len(job))
     return [
         Note(seq=e.seq, kind="line", text=str(reply[str(e.seq)]))
@@ -133,27 +132,30 @@ async def write_lines(game_id: ObjectId, job: list[Event]) -> list[Note]:
     ]
 
 
-async def write_taunt(game_id: ObjectId, job: list[Event], players: list[Player]) -> list[Note]:
+async def write_letter(
+    job: list[Event], players: list[Player], notes: list[db.Document]
+) -> list[Note]:
     """A rare message: at most one every three rounds, unless someone is knocked out."""
-    speaker = taunter(job, players)
+    speaker = sender(job, players)
     if not speaker:
         return []
     now = job[-1].turn.round
-    doc = await db.games.find_one({"_id": game_id}, {"notes": 1})
-    assert doc is not None
-    taunts = [n for n in doc.get("notes", []) if n["kind"] == "taunt"]
-    if not any(e.kind == "eliminated" for e in job) and any(n["round"] > now - 3 for n in taunts):
+    letters = [n for n in notes if n["kind"] == "letter"]
+    if not any(e.kind == "eliminated" for e in job) and any(n["round"] > now - 3 for n in letters):
         return []
     human = next(p for p in players if not p.npc)
     prompt = (
         f"You are {speaker.name}: {PERSONALITIES[speaker.name].voice}. "
         f"You are writing to {human.name}.\n\nWhat happened:\n" + "\n".join(e.text for e in job)
     )
-    reply = await ask(TAUNT_PROMPT, prompt, 3000, thinking=True)
+    sent = [n["text"] for n in letters if n["player"] == speaker.id][-3:]
+    if sent:
+        prompt += "\n\nYour earlier letters to them:\n" + "\n".join(sent)
+    reply = await ask(LETTER_PROMPT, prompt, 3000, thinking=True)
     return [
         Note(
             seq=job[-1].seq,
-            kind="taunt",
+            kind="letter",
             text=str(reply["message"]),
             player=speaker.id,
             round=now,
@@ -166,8 +168,11 @@ async def write(game_id: ObjectId, game_jobs: list[list[Event]], players: list[P
     async with locks[game_id]:
         for job in game_jobs:
             try:
-                await keep(game_id, await write_lines(game_id, job))
-                await keep(game_id, await write_taunt(game_id, job, players))
+                doc = await db.games.find_one({"_id": game_id}, {"notes": 1})
+                assert doc is not None
+                notes = doc.get("notes", [])
+                await keep(game_id, await write_lines(game_id, job, notes))
+                await keep(game_id, await write_letter(job, players, notes))
             except Exception as error:  # this is a bonus: a failure must not stop the game
                 print(f"Nothing written for event {job[0].seq}: {error!r}")
             await db.games.update_one({"_id": game_id}, {"$inc": {"pending": -1}})

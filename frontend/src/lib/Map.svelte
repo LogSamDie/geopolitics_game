@@ -26,12 +26,11 @@
   let headElement: HTMLDivElement
   let head: Marker
   let map = $state<MapLibre>() // set once the world is loaded
-  const tags = $state<Record<string, HTMLDivElement>>({})
+  const tags: Record<string, HTMLDivElement> = {}
   const centres: Record<string, [number, number]> = {}
 
   /** A dash pattern shifted along the line, which is how dashes march. */
-  function dashes(offset: number, dash: number, gap: number): number[] {
-    const shift = offset % (dash + gap)
+  function dashes(shift: number, dash: number, gap: number): number[] {
     return shift < gap ? [0, shift, dash, gap - shift] : [shift - gap, gap, dash - (shift - gap), 0]
   }
 
@@ -180,10 +179,9 @@
   class="head"
   class:troops={!route?.attack}
   style:display={route?.attack || route?.live ? undefined : 'none'}
-  style:--owner={route && colorOf(countries[route.source].owner)}
   bind:this={headElement}
 >
-  <svg viewBox="0 0 24 24">
+  <svg viewBox="0 0 24 24" style:fill={route && colorOf(countries[route.source].owner)}>
     {#if route?.attack}<path d="M21 12 4 4.5 7.5 12 4 19.5Z" />{:else}<circle cx="12" cy="12" r="7.5" />{/if}
   </svg>
 </div>
@@ -193,17 +191,17 @@
   <div
     class="tag"
     class:marked={marked.includes(country.code)}
-    class:clickable={onselect}
-    style:--owner={color}
-    style:--on-owner={textOn(color)}
+    style:cursor={onselect ? 'pointer' : undefined}
     bind:this={tags[country.code]}
     role="button"
     tabindex="0"
     onclick={() => onselect?.(country.code)}
     onkeydown={(e) => e.key === 'Enter' && onselect?.(country.code)}
   >
-    <span class="name">{country.name}</span>
-    {#key country.soldiers}<span class="count">{country.soldiers}</span>{/key}
+    <span class="name caps">{country.name}</span>
+    {#key country.soldiers}
+      <span class="count" style:background={color} style:color={textOn(color)}>{country.soldiers}</span>
+    {/key}
   </div>
 {/each}
 
@@ -225,7 +223,6 @@
 
   .head svg {
     display: block;
-    fill: var(--owner);
     stroke: var(--ink);
     stroke-width: 1.5;
     stroke-linejoin: round;
@@ -244,28 +241,16 @@
     white-space: nowrap;
   }
 
-  .tag.clickable {
-    cursor: pointer;
-  }
-
   .tag.marked {
     border-color: var(--ink);
     box-shadow: 0 0 0 1px var(--ink);
     z-index: 1;
   }
 
-  .name {
-    font-variant: small-caps;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-  }
-
   .count {
     min-width: 1.5rem;
     padding: 0.1rem 0.3rem;
     text-align: center;
-    background: var(--owner);
-    color: var(--on-owner);
     border: 1px solid var(--border);
     font-size: 12px;
     font-weight: 700;

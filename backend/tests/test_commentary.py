@@ -1,15 +1,26 @@
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
-from bson import ObjectId
 
-from app import commentary, db, npc
+from app import commentary, npc
+from app.engine import Game
 from tests.helpers import give_turn, human_turn, new_game, rig
 
 
 @pytest.fixture(autouse=True)
 def api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test")
+
+
+def won_battle() -> Game:
+    """The human has just conquered C1, which knocks out p1. Only that battle's events are left."""
+    game = human_turn(new_game())
+    game.events.clear()
+    rig(game, 6, 1)
+    game.attack("C0", "C1")
+    game.fight()
+    return game
 
 
 def test_no_key_means_no_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,13 +31,7 @@ def test_no_key_means_no_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_battle_is_one_job_of_only_its_narrated_events() -> None:
-    game = human_turn(new_game())
-    game.events.clear()
-    game.country("C1").soldiers = 3
-    rig(game, 6, 1)
-    game.attack("C0", "C1")
-    game.fight()
-    [battle] = commentary.jobs(game)
+    [battle] = commentary.jobs(won_battle())
     assert battle[0].kind == "attacked"
     assert battle[-1].kind == "eliminated"
 
@@ -68,14 +73,14 @@ def test_the_npc_only_speaks_up_once_a_country_changes_hands() -> None:
     game.attack("C0", "C1")
     game.roll()
     players = game.state.players
-    assert commentary.taunter(game.events, players) is None
+    assert commentary.sender(game.events, players) is None
     rig(game, 6, 1)
     game.fight()
-    speaker = commentary.taunter(game.events, players)
+    speaker = commentary.sender(game.events, players)
     assert speaker is not None and speaker.id == "p1"
 
 
-def test_npcs_fighting_each_other_do_not_taunt() -> None:
+def test_npcs_fighting_each_other_do_not_write() -> None:
     game = new_game()
     give_turn(game, "p1")
     game.country("C1").soldiers = 9
@@ -83,7 +88,7 @@ def test_npcs_fighting_each_other_do_not_taunt() -> None:
     game.events.clear()
     game.attack("C1", "C2")
     game.fight()
-    assert commentary.taunter(game.events, game.state.players) is None
+    assert commentary.sender(game.events, game.state.players) is None
 
 
 def test_the_battle_prompt_holds_only_a_little_history() -> None:
@@ -118,27 +123,34 @@ def test_the_advisor_gets_exact_odds_and_knows_when_the_attack_is_used() -> None
 def test_messages_are_rare_unless_someone_is_knocked_out(
     monkeypatch: pytest.MonkeyPatch, last_round: int | None, knocked_out: bool, speaks: bool
 ) -> None:
-    game = human_turn(new_game())
-    game.events.clear()
-    rig(game, 6, 1)
-    game.attack("C0", "C1")
-    game.fight()
+    game = won_battle()
     game.turn.round = 4
     job = [e.model_copy(update={"turn": game.turn}) for e in game.events]
     if not knocked_out:
         job = [e for e in job if e.kind != "eliminated"]
-    taunts = [] if last_round is None else [{"kind": "taunt", "round": last_round}]
+    letters = (
+        []
+        if last_round is None
+        else [{"kind": "letter", "round": last_round, "player": "p1", "text": "Earlier."}]
+    )
 
-    async def find_one(*args: object) -> dict[str, object]:
-        return {"notes": taunts}
-
-    async def fake_ask(*args: object, **kwargs: object) -> dict[str, str]:
-        assert kwargs == {"thinking": True}
-        return {"message": "So there."}
-
-    monkeypatch.setattr(db.games, "find_one", find_one)
-    monkeypatch.setattr(commentary, "ask", fake_ask)
-    notes = asyncio.run(commentary.write_taunt(ObjectId(), job, game.state.players))
+    ask = AsyncMock(return_value={"message": "So there."})
+    monkeypatch.setattr(commentary, "ask", ask)
+    notes = asyncio.run(commentary.write_letter(job, game.state.players, letters))
     assert bool(notes) == speaks
     if speaks:
         assert notes[0].player == "p1" and notes[0].round == 4
+        assert ask.call_args.kwargs == {"thinking": True}
+
+
+def test_a_commander_remembers_only_their_own_letters(monkeypatch: pytest.MonkeyPatch) -> None:
+    game = won_battle()
+    letters = [
+        {"kind": "letter", "player": "p1", "round": -9, "text": "My own joke."},
+        {"kind": "letter", "player": "p2", "round": -9, "text": "Someone else's."},
+    ]
+    ask = AsyncMock(return_value={"message": "So there."})
+    monkeypatch.setattr(commentary, "ask", ask)
+    asyncio.run(commentary.write_letter(game.events, game.state.players, letters))
+    prompt = ask.call_args.args[1]
+    assert "My own joke." in prompt and "Someone else's." not in prompt

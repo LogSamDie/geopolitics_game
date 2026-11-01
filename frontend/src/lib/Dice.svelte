@@ -3,11 +3,7 @@
   import { colorOf, textOn } from './colors'
   import type { GameEvent } from './types'
 
-  interface Props {
-    roll: GameEvent
-    live?: boolean
-  }
-  let { roll, live = false }: Props = $props()
+  let { roll, live = false }: { roll: GameEvent; live?: boolean } = $props()
   const animate = untrack(() => live) // a change of speed must not re-roll the dice on screen
 
   // Cells of a 3x3 grid, numbered row by row, for each face.
@@ -16,15 +12,15 @@
 </script>
 
 {#snippet die(value: number, lost: boolean, color: string)}
-  <svg class="die" class:lost style:--fill={color} style:--pips={textOn(color)} viewBox="0 0 20 20">
-    <rect x="0.5" y="0.5" width="19" height="19" rx="2" />
+  <svg class="die" class:lost style:fill={textOn(color)} viewBox="0 0 20 20">
+    <rect x="0.5" y="0.5" width="19" height="19" rx="2" style:fill={color} />
     {#each pips[value] as cell}<circle cx={5 + 5 * (cell % 3)} cy={5 + 5 * Math.floor(cell / 3)} r="1.8" />{/each}
   </svg>
 {/snippet}
 
 <!-- A column per pair: the attacker's die above the defender's. -->
 <div class="dice" class:live={animate}>
-  {#each roll.dice ?? [] as [a, d], i (i)}
+  {#each roll.dice ?? [] as [a, d], i}
     <span class="pair" style:--i={i}>{@render die(a, a < d, colors[0])}{@render die(d, d < a, colors[1])}</span>
   {/each}
 </div>
@@ -47,12 +43,7 @@
   }
 
   rect {
-    fill: var(--fill);
     stroke: var(--ink);
-  }
-
-  circle {
-    fill: var(--pips);
   }
 
   .lost {

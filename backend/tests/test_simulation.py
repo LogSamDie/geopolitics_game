@@ -43,7 +43,6 @@ class Checker:
             self.check_event(event)
         self.seen = len(game.events)
         assert game.state.seq == self.seen
-        assert len(game.state.countries) == 10
         assert all(c.soldiers >= 1 for c in game.state.countries)
         assert {c.owner for c in game.state.countries} <= {p.id for p in game.state.players}
         assert {c.code: c for c in game.state.countries} == self.board

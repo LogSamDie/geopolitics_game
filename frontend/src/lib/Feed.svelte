@@ -1,12 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
 
-  interface Props {
-    title: string
-    size: number
-    children: Snippet
-  }
-  let { title, size, children }: Props = $props()
+  let { title, size, children }: { title: string; size: number; children: Snippet } = $props()
 
   let list: HTMLOListElement
   let following = true // false while the reader has scrolled up
@@ -19,7 +14,7 @@
 </script>
 
 <section>
-  <h2>{title}</h2>
+  <h2 class="caps">{title}</h2>
   <ol bind:this={list} onscroll={() => (following = list.scrollTop + list.clientHeight >= list.scrollHeight - 40)}>
     {@render children()}
   </ol>
@@ -35,9 +30,6 @@
   h2 {
     margin: 0 0 0.25rem;
     font-size: 13px;
-    font-weight: 700;
-    font-variant: small-caps;
-    letter-spacing: 0.06em;
   }
 
   ol {

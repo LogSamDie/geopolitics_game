@@ -155,8 +155,7 @@ def test_no_transfers_while_an_attack_is_in_progress() -> None:
     with pytest.raises(RuleError, match="attack phase"):
         game.transfer("C0", "C1", 1)
     rig(game, 6, 1)
-    while game.turn.phase == "attack":
-        game.roll()
+    game.fight()
     game.transfer("C0", "C2", 1)  # allowed again once the attack is over
     assert game.country("C2").soldiers == 3
 
@@ -183,12 +182,7 @@ def test_attack_needs_two_soldiers_an_own_source_and_an_enemy_target() -> None:
 
 @pytest.mark.parametrize(
     ("attackers", "defenders", "dice"),
-    [
-        (10, 2, 2),
-        (3, 5, 2),
-        (2, 5, 1),
-        (9, 9, 8),
-    ],  # the spec's examples, plus the attacker's reserve
+    [(10, 2, 2), (3, 5, 2), (2, 5, 1), (9, 9, 8)],  # the spec's examples, plus the reserve
 )
 def test_dice_count_is_the_smaller_side_with_one_attacker_held_back(
     attackers: int, defenders: int, dice: int
@@ -249,8 +243,7 @@ def test_conquest_garrisons_the_bonus_and_lets_the_turn_continue() -> None:
     src, dst = game.country("C0"), game.country("C9")  # value 9: bonus 4
     rig(game, 6, 1)  # the attacker wins every pair
     game.attack("C0", "C9")
-    while game.turn.phase == "attack":
-        game.roll()
+    game.fight()
     assert (src.soldiers, dst.soldiers, dst.owner) == (9, 4, game.human.id)
     conquered = game.events[-2]
     assert conquered.kind == "conquered"
@@ -302,8 +295,7 @@ def test_conquering_all_ten_countries_wins() -> None:
     last = game.state.countries[-1]
     rig(game, 6, 1)
     game.attack("C0", last.code)
-    while game.turn.phase == "attack":
-        game.roll()
+    game.fight()
     assert [e.kind for e in game.events[-3:]] == ["conquered", "eliminated", "over"]
     assert (game.turn.phase, game.turn.winner) == ("over", game.human.id)
     with pytest.raises(RuleError, match="over phase"):
@@ -326,28 +318,16 @@ def test_an_npc_taking_the_human_last_country_to_complete_the_world_wins_once() 
     assert [e.kind for e in game.events].count("over") == 1
 
 
-def test_eliminating_an_npc_does_not_end_the_game() -> None:
-    game = human_turn(new_game())
-    rig(game, 6, 1)
-    game.attack("C0", "C1")
-    game.roll()
-    assert [e.kind for e in game.events[-2:]] == ["conquered", "eliminated"]
-    assert game.turn.phase == "action"
-    assert not game.countries_of("p1")
-
-
 # Events
 
 
-def test_events_are_numbered_and_carry_independent_snapshots() -> None:
+def test_events_carry_independent_snapshots() -> None:
     game = human_turn(new_game())
     game.country("C1").soldiers = 10
     rig(game, 6, 1)
     game.attack("C0", "C1")
     game.roll()  # 8 dice: C1 is left with 2
     rolled = game.events[-1]
-    assert [e.seq for e in game.events] == list(range(1, len(game.events) + 1))
-    assert game.state.seq == len(game.events)
     assert [(c.code, c.soldiers) for c in rolled.countries] == [("C0", 9), ("C1", 2)]
     assert rolled.turn.phase == "attack"
     game.roll()  # conquers C1

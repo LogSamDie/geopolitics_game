@@ -3,6 +3,7 @@
 import os
 from collections.abc import Iterator
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -15,7 +16,9 @@ from app import commentary, db
 from app.auth import hash_password, verify_password
 from app.main import app
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+MONGO: MongoClient[dict[str, Any]] = MongoClient(
+    os.environ.get("MONGO_URL", "mongodb://localhost:27017"), serverSelectionTimeoutMS=1000
+)
 ANN = {"username": "ann", "password": "secret1"}
 
 
@@ -28,9 +31,8 @@ def test_password_hashes_verify_only_the_right_password() -> None:
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
-    mongo: MongoClient[dict[str, object]] = MongoClient(MONGO_URL, serverSelectionTimeoutMS=1000)
     try:
-        mongo.drop_database("geopolitics_test")
+        MONGO.drop_database("geopolitics_test")
     except PyMongoError:
         pytest.skip("MongoDB is not running")
     db.database = db.client["geopolitics_test"]
@@ -77,12 +79,8 @@ def test_play_a_game_through_the_api(client: TestClient) -> None:
     human = next(p for p in state["players"] if not p["npc"])
     assert human["name"] == "ann"
     za = state["countries"][0]
-    assert {k: za[k] for k in ("code", "name", "value", "owner")} == {
-        "code": "ZA",
-        "name": "South Africa",
-        "value": 5,
-        "owner": human["id"],
-    }
+    assert (za["code"], za["name"], za["value"]) == ("ZA", "South Africa", 5)
+    assert za["owner"] == human["id"]
     assert 1 <= za["soldiers"] <= 5  # the NPCs may have attacked it already
     assert state["turn"]["player"] == human["id"], "NPC turns ran before responding"
 
@@ -146,15 +144,22 @@ def test_play_a_game_through_the_api(client: TestClient) -> None:
 
     # A finished game takes no more commands.
     client.post("/api/auth/login", json=ANN)
-    sync: MongoClient[dict[str, Any]] = MongoClient(MONGO_URL)
-    sync["geopolitics_test"]["games"].update_one({}, {"$set": {"state.turn.phase": "over"}})
+    MONGO["geopolitics_test"]["games"].update_one({}, {"$set": {"state.turn.phase": "over"}})
     assert client.post(url, json={"kind": "end_turn"}).status_code == 409
+
+
+def start_game(client: TestClient, username: str, country: str) -> dict[str, Any]:
+    """Sign up a new player and start their game, which the NPCs may end before they move."""
+    client.post("/api/auth/register", json={"username": username, "password": "secret1"})
+    game: dict[str, Any] = client.post("/api/games", json={"country": country}).json()
+    if game["state"]["turn"]["phase"] == "over":
+        pytest.skip("the NPCs finished this game before the human moved")
+    return game
 
 
 def test_writing_happens_after_a_move_and_failures_do_not_stick(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client.post("/api/auth/register", json={"username": "cam", "password": "secret3"})
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test")
     prompts = []
 
@@ -166,10 +171,8 @@ def test_writing_happens_after_a_move_and_failures_do_not_stick(
         return {seq: f"Line {seq}" for seq in seqs if seq.isdigit()} | {"999999": "made up"}
 
     monkeypatch.setattr(commentary, "ask", fake_ask)
-    game = client.post("/api/games", json={"country": "CN"}).json()
+    game = start_game(client, "cam", "CN")
     url = f"/api/games/{game['id']}"
-    if game["state"]["turn"]["phase"] == "over":
-        pytest.skip("the NPCs finished this game before the human moved")
     enemy = next(c for c in game["state"]["countries"] if c["owner"] != "p0")
     client.post(f"{url}/commands", json={"kind": "attack", "source": "CN", "target": enemy["code"]})
     view = client.get(url).json()
@@ -187,18 +190,13 @@ def test_writing_happens_after_a_move_and_failures_do_not_stick(
     } in view["notes"]
 
     for prompt in prompts:
-        if "This battle:" not in prompt:
-            continue
-        first = int(prompt.split("This battle:\n")[1].split(":")[0])
         if "Earlier in the war:" in prompt:
+            first = int(prompt.split("This battle:\n")[1].split(":")[0])
             earlier = prompt.split("Earlier in the war:\n")[1].split("\n\n")[0].split("\n")
             known = {e["text"] for e in view["events"] if e["seq"] < first}
             assert set(earlier) <= known, "a battle must not be told about its own future"
 
-    async def failing_ask(*args: object, **kwargs: object) -> dict[str, Any]:
-        raise httpx.ConnectError("down")
-
-    monkeypatch.setattr(commentary, "ask", failing_ask)
+    monkeypatch.setattr(commentary, "ask", AsyncMock(side_effect=httpx.ConnectError("down")))
     assert client.post(f"{url}/commands", json={"kind": "roll"}).status_code == 200
     assert client.get(url).json()["pending"] == 0
 
@@ -206,17 +204,9 @@ def test_writing_happens_after_a_move_and_failures_do_not_stick(
 def test_advice_is_for_the_owner_and_once_per_round(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client.post("/api/auth/register", json={"username": "dee", "password": "secret4"})
-    calls = []
-
-    async def fake_ask(*args: object, **kwargs: object) -> dict[str, Any]:
-        calls.append(kwargs)
-        return {"advice": "Attack."}
-
-    monkeypatch.setattr(commentary, "ask", fake_ask)
-    game = client.post("/api/games", json={"country": "IN"}).json()
-    if game["state"]["turn"]["phase"] == "over":
-        pytest.skip("the NPCs finished this game before the human moved")
+    ask = AsyncMock(return_value={"advice": "Attack."})
+    monkeypatch.setattr(commentary, "ask", ask)
+    game = start_game(client, "dee", "IN")
     url = f"/api/games/{game['id']}/advice"
     first = client.post(url).json()
     assert [n["text"] for n in first["notes"] if n["kind"] == "advice"] == ["Attack."]
@@ -225,8 +215,8 @@ def test_advice_is_for_the_owner_and_once_per_round(
     client.post(commands, json={"kind": "attack", "source": "IN", "target": enemy["code"]})
     client.post(commands, json={"kind": "fight"})
     client.post(url)
-    assert len(calls) == 1
-    assert calls[0]["thinking"] is True
+    ask.assert_awaited_once()
+    assert ask.call_args.kwargs["thinking"] is True
 
     client.post("/api/auth/logout")
     assert client.post(url).status_code == 401
@@ -235,11 +225,8 @@ def test_advice_is_for_the_owner_and_once_per_round(
 
 
 def test_events_come_back_in_order_across_moves_from_any_point(client: TestClient) -> None:
-    client.post("/api/auth/register", json={"username": "fay", "password": "secret6"})
-    game = client.post("/api/games", json={"country": "PE"}).json()
+    game = start_game(client, "fay", "PE")
     url = f"/api/games/{game['id']}"
-    if game["state"]["turn"]["phase"] == "over":
-        pytest.skip("the NPCs finished this game before the human moved")
     moved = client.post(f"{url}/commands", json={"kind": "end_turn"}).json()
     events = client.get(url).json()["events"]
     seqs = [e["seq"] for e in events]
@@ -247,31 +234,18 @@ def test_events_come_back_in_order_across_moves_from_any_point(client: TestClien
     assert events[-len(moved["events"]) :] == moved["events"]
     middle = seqs[len(seqs) // 2]
     assert client.get(f"{url}?after={middle}").json()["events"] == events[middle:]
-    assert "events" not in db_game(game["id"])
+    stored = MONGO["geopolitics_test"]["games"].find_one({"_id": ObjectId(game["id"])})
+    assert stored is not None and "events" not in stored
 
 
 def test_a_move_whose_events_cannot_be_saved_is_undone(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client.post("/api/auth/register", json={"username": "gus", "password": "secret7"})
-    game = client.post("/api/games", json={"country": "NO"}).json()
+    game = start_game(client, "gus", "NO")
     url = f"/api/games/{game['id']}"
-    if game["state"]["turn"]["phase"] == "over":
-        pytest.skip("the NPCs finished this game before the human moved")
-
-    async def failing_save(*args: object) -> None:
-        raise PyMongoError("down")
-
     with monkeypatch.context() as patch:
-        patch.setattr(db, "save_events", failing_save)
+        patch.setattr(db, "save_events", AsyncMock(side_effect=PyMongoError("down")))
         with pytest.raises(PyMongoError):
             client.post(f"{url}/commands", json={"kind": "end_turn"})
     assert client.get(url).json()["state"] == game["state"]
     assert client.post(f"{url}/commands", json={"kind": "end_turn"}).status_code == 200
-
-
-def db_game(game_id: str) -> dict[str, object]:
-    mongo: MongoClient[dict[str, object]] = MongoClient(MONGO_URL)
-    doc = mongo["geopolitics_test"]["games"].find_one({"_id": ObjectId(game_id)})
-    assert doc is not None
-    return doc

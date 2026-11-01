@@ -3,11 +3,7 @@
   import { navigate } from './lib/router.svelte'
   import type { Country, GameSummary, User } from './lib/types'
 
-  interface Props {
-    user: User | null
-    onuser: (user: User | null) => void
-  }
-  let { user, onuser }: Props = $props()
+  let { user, onuser }: { user: User | null; onuser: (user: User | null) => void } = $props()
 
   let username = $state('')
   let password = $state('')
@@ -105,14 +101,12 @@
 
     <section>
       <h2>Your games</h2>
-      {#if games.length === 0}
-        <p class="muted">None yet.</p>
-      {/if}
+      {#if games.length === 0}<p class="muted">None yet.</p>{/if}
       <ul>
         {#each games as game (game.id)}
           <li>
             <a href="/games/{game.id}">{game.country}</a>
-            <span>{describe(game)}, {new Date(game.created).toLocaleDateString()}</span>
+            <span class="muted">{describe(game)}, {new Date(game.created).toLocaleDateString()}</span>
           </li>
         {/each}
       </ul>
@@ -157,7 +151,6 @@
   }
 
   li span {
-    color: var(--muted);
     text-align: right;
   }
 </style>

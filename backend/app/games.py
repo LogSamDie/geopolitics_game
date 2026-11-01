@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from . import commentary, db, npc
 from .auth import User, current_user
 from .countries import COUNTRIES
-from .engine import NPC_NAMES, Country, Event, Game, RuleError, State, Turn
+from .engine import PERSONALITIES, Country, Event, Game, RuleError, State, Turn
 
 router = APIRouter(prefix="/api")
 
@@ -79,7 +79,7 @@ async def create_game(
     if body.country not in COUNTRIES:
         raise HTTPException(422, "Unknown country")
     others = [c for code, c in COUNTRIES.items() if code != body.country]
-    chosen = [COUNTRIES[body.country], *random.sample(others, len(NPC_NAMES))]
+    chosen = [COUNTRIES[body.country], *random.sample(others, len(PERSONALITIES))]
     countries = [c.model_copy() for c in chosen]
     game = Game.new(user.username, countries)
     npc.run(game)
@@ -90,8 +90,8 @@ async def create_game(
         "version": 1,
         "state": game.state.model_dump(),
         "pending": len(jobs),
+        "_id": ObjectId(),
     }
-    doc["_id"] = ObjectId()
     await db.save_events(doc["_id"], [e.model_dump() for e in game.events])
     await db.games.insert_one(doc)
     tasks.add_task(commentary.write, doc["_id"], jobs, game.state.players)

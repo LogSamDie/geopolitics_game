@@ -1,21 +1,31 @@
 """The rules of the game: every move raises RuleError or changes the state and logs events."""
 
 import random
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-NPC_NAMES = (
-    "Marshal Tundra",
-    "General Isthmus",
-    "Admiral Atoll",
-    "Colonel Steppe",
-    "Baroness Delta",
-    "President Mesa",
-    "Commodore Fjord",
-    "Chancellor Savanna",
-    "Generalissimo Oasis",
-)
+
+class Personality(NamedTuple):
+    voice: str
+    attack_odds: float  # the least chance of winning it starts an attack with
+    stop_odds: float  # it withdraws below this
+    garrison: float  # the share of the army it moves into a conquest
+
+
+PERSONALITIES = {
+    "Marshal Tundra": Personality("pompous, quotes their own memoirs", 0.5, 0.25, 0.5),
+    "General Isthmus": Personality("weary bureaucrat, cites regulations", 0.5, 0.25, 0.5),
+    "Admiral Atoll": Personality("reckless sea dog, loves a gamble", 0.35, 0.15, 0.25),
+    "Colonel Steppe": Personality("cautious and gloomy, expects the worst", 0.65, 0.4, 0.75),
+    "Baroness Delta": Personality("haughty aristocrat, finds war vulgar", 0.35, 0.15, 0.25),
+    "President Mesa": Personality("slippery politician, always campaigning", 0.65, 0.4, 0.75),
+    "Commodore Fjord": Personality("laconic, says as little as possible", 0.65, 0.4, 0.75),
+    "Chancellor Savanna": Personality("cheerfully menacing, loves a metaphor", 0.35, 0.15, 0.25),
+    "Generalissimo Oasis": Personality(
+        "vain, refers to themselves in the third person", 0.5, 0.25, 0.5
+    ),
+}
 
 Phase = Literal["reinforce", "action", "attack", "over"]
 Kind = Literal[
@@ -102,7 +112,7 @@ class Game:
         """The human (p0) owns the first country, an NPC each of the others."""
         rng = rng or random.Random()
         players = [Player(id="p0", name=human, npc=False)]
-        for i, name in enumerate(NPC_NAMES, start=1):
+        for i, name in enumerate(PERSONALITIES, start=1):
             players.append(Player(id=f"p{i}", name=name, npc=True))
         for player, country in zip(players, countries, strict=True):
             country.owner = player.id
@@ -208,7 +218,7 @@ class Game:
             dice=pairs,
         )
         if dst.soldiers == 0:
-            self._conquer(src, dst)
+            self._conquer(dst)
         elif src.soldiers == 1:
             self.turn.phase = "action"
             self._log(
@@ -246,7 +256,7 @@ class Game:
             raise RuleError(f"{country.name} is not yours")
         return country
 
-    def _conquer(self, src: Country, dst: Country) -> None:
+    def _conquer(self, dst: Country) -> None:
         loser = self.player(dst.owner)
         bonus = conquest_bonus(dst.value)
         dst.owner = self.turn.player

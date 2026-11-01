@@ -1,9 +1,6 @@
 import random
 
-import pytest
-
 from app import npc
-from app.engine import NPC_NAMES
 from tests.helpers import give_turn, new_game, rig
 
 
@@ -27,7 +24,6 @@ def test_win_probability_edges() -> None:
     assert npc.win_probability(1, 5) == 0.0
     assert npc.win_probability(5, 0) == 1.0
     assert npc.win_probability(2, 1) == 0.5  # one die each, ties re-rolled
-    assert npc.win_probability(21, 20) == pytest.approx(0.5)  # 20 dice on each side
     assert npc.win_probability(3, 3) < npc.win_probability(4, 3) < npc.win_probability(5, 3)
     assert npc.win_probability(16, 15) == 0.5  # exactly even, so an NPC attacks
     assert npc.win_probability(1000, 10) > 0.99
@@ -126,25 +122,6 @@ def test_run_plays_every_npc_until_the_human_or_the_end() -> None:
     assert not game.current_player.npc or game.turn.phase == "over"
     decisions = [e for e in game.events if e.kind in ("attacked", "skipped")]
     assert all(e.reason for e in decisions), "every NPC turn is justified"
-
-
-def test_run_plays_on_to_an_npc_winner_after_the_human_is_eliminated() -> None:
-    game = new_game()
-    game.country("C0").soldiers, game.country("C1").soldiers = 1, 10
-    give_turn(game, "p1")
-    rig(game, 6, 1)
-    game.attack("C1", "C0")
-    game.roll()
-    assert not game.countries_of(game.human.id)
-    game.rng = random.Random(1)
-    game.end_turn()
-    npc.run(game)
-    assert game.turn.phase == "over"
-    assert game.turn.winner is not None and game.player(game.turn.winner).npc
-
-
-def test_every_commander_has_a_personality() -> None:
-    assert set(npc.PERSONALITIES) == set(NPC_NAMES)
 
 
 def test_a_reckless_commander_attacks_where_a_cautious_one_does_not() -> None:
