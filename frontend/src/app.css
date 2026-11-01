@@ -27,19 +27,10 @@ body {
   overflow-wrap: break-word;
 }
 
-h1,
 h2 {
   margin: 0 0 0.5rem;
-  font-weight: 400;
-}
-
-h1 {
-  font-size: 28px;
-  border-bottom: 3px double var(--ink);
-}
-
-h2 {
   font-size: 20px;
+  font-weight: 400;
 }
 
 p {
@@ -80,6 +71,34 @@ button:disabled {
   border-color: var(--rule);
   background: var(--panel);
   cursor: default;
+}
+
+button.quiet,
+button.quiet:disabled {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+button.quiet:enabled:hover {
+  color: var(--ink);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 1rem;
+  min-height: 3.2rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.brand {
+  color: var(--ink);
+  text-decoration: none;
 }
 
 .caps {

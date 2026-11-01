@@ -65,8 +65,8 @@ play out visibly. Fast-forward shortens the pause, and the replay slider moves b
 - `backend/app/commentary.py`: commentary, commander letters and advice from `deepseek-flash`.
   Commentary takes one call per battle, written in the background after the moves are saved. A
   commander's letter after a conquest uses thinking, at most once every three rounds unless someone
-  is knocked out. The advisor uses thinking too, once per round when asked, and explains odds the
-  server worked out. Once the human is out, only battles that knock someone
+  is knocked out. The advisor uses thinking too, once per round when asked. Exact odds rank its
+  options, but it never sees the numbers, and one time in four it argues for the worst ones. Once the human is out, only battles that knock someone
   out get commentary, and the feed shows `. . .` for the rest.
 - `frontend/src/lib/playback.svelte.ts`: the events the UI renders from.
 - `frontend/src/lib/Map.svelte`: the board.

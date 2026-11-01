@@ -29,6 +29,11 @@ def test_password_hashes_verify_only_the_right_password() -> None:
     assert hash_password("secret1") != stored  # a fresh salt every time
 
 
+@pytest.fixture(autouse=True)
+def no_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
     try:

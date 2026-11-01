@@ -12,9 +12,10 @@
     countries: Record<string, Country>
     marked: string[]
     route?: Route
+    focus?: string | null
     onselect?: (code: string) => void
   }
-  let { countries, marked, route, onselect }: Props = $props()
+  let { countries, marked, route, focus, onselect }: Props = $props()
 
   type World = FeatureCollection<Geometry, { code: string; lon: number; lat: number }>
   const empty: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -27,6 +28,7 @@
   let head: Marker
   let map = $state<MapLibre>() // set once the world is loaded
   const tags: Record<string, HTMLDivElement> = {}
+  const markers: Record<string, Marker> = {}
   const centres: Record<string, [number, number]> = {}
 
   /** A dash pattern shifted along the line, which is how dashes march. */
@@ -111,11 +113,7 @@
         head = new Marker({ element: headElement, rotationAlignment: 'map', subpixelPositioning: true })
           .setLngLat([0, 0])
           .addTo(created)
-        for (const { properties: p } of world.features) {
-          centres[p.code] = [p.lon, p.lat]
-          if (tags[p.code])
-            new Marker({ element: tags[p.code], subpixelPositioning: true }).setLngLat(centres[p.code]).addTo(created)
-        }
+        for (const { properties: p } of world.features) centres[p.code] = [p.lon, p.lat]
         map = created
       },
     )
@@ -125,10 +123,23 @@
 
   $effect(() => {
     if (!map) return
+    for (const code in markers) {
+      if (countries[code]) continue
+      markers[code].remove()
+      delete markers[code]
+      map.removeFeatureState({ source: 'world', id: code })
+    }
     for (const country of Object.values(countries)) {
       const state = { color: colorOf(country.owner), marked: marked.includes(country.code) }
       map.setFeatureState({ source: 'world', id: country.code }, state)
+      markers[country.code] ??= new Marker({ element: tags[country.code], subpixelPositioning: true })
+        .setLngLat(centres[country.code])
+        .addTo(map)
     }
+  })
+
+  $effect(() => {
+    if (map && focus) map.easeTo({ center: centres[focus], duration: 600 })
   })
 
   $effect(() => {
@@ -194,7 +205,8 @@
     style:cursor={onselect ? 'pointer' : undefined}
     bind:this={tags[country.code]}
     role="button"
-    tabindex="0"
+    tabindex={onselect ? 0 : -1}
+    aria-disabled={!onselect}
     onclick={() => onselect?.(country.code)}
     onkeydown={(e) => e.key === 'Enter' && onselect?.(country.code)}
   >

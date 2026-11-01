@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import random
 from collections import defaultdict
 from itertools import groupby
 from typing import Any, Literal
@@ -49,10 +50,11 @@ Name no real living person. Never use a long em dash. No gore or cruelty.
 If you have written to them before, carry on a running joke or grudge from those letters.
 Reply with JSON like this: {"message": "Your letter."}"""
 
-ADVICE_PROMPT = """You are the commanders advising a player in an imaginary world war board game.
-Recommend exactly one move from what you are given, using only those numbers, with a little dry
-wit. At most 45 words. Use neutral pronouns. Never use a long em dash.
-Reply with JSON like this: {"advice": "Attack Malta from Japan: near certain, and well paid."}"""
+ADVICE_PROMPT = """You are the commanders advising a player in an imaginary world war between real
+countries. Give 40 to 60 words of advice with dry humour: recommend one move from the options, say
+why in terms of these actual places, and add one thing to watch out for. Never state odds or
+percentages. Use neutral pronouns. Never use a long em dash. Never mention that this is a game.
+Reply with JSON like this: {"advice": "Your advice."}"""
 
 locks: defaultdict[ObjectId, asyncio.Lock] = defaultdict(asyncio.Lock)
 
@@ -184,8 +186,8 @@ async def keep(game_id: ObjectId, notes: list[Note]) -> None:
     )
 
 
-def board(game: Game) -> str:
-    """The facts the advisor works from, with the odds worked out so it cannot get them wrong."""
+def board(game: Game, sound: bool) -> str:
+    """What the advisors know. Exact odds rank the options, but they never see the numbers."""
     me = game.human.id
     extra = game.turn.reinforcements
     mine = game.countries_of(me)
@@ -200,29 +202,32 @@ def board(game: Game) -> str:
         ),
     ]
     if extra:
-        lines.append(
-            f"You must place {extra} new soldiers first; the odds below assume all of them."
-        )
+        lines.append(f"You must place {extra} new soldiers first.")
     if game.turn.attack:
         lines.append(
             "You have already attacked this turn, "
             "so advise on moving soldiers, or on ending the turn if none can move."
         )
     else:
-        options = [
-            (win_probability(s.soldiers + extra, t.soldiers), s, t)
-            for s in mine
-            if s.soldiers + extra >= 2
-            for t in enemies
+        options = [(s, t) for s in mine if s.soldiers + extra >= 2 for t in enemies]
+        options.sort(
+            key=lambda o: (
+                win_probability(o[0].soldiers + extra, o[1].soldiers) * conquest_bonus(o[1].value)
+            ),
+            reverse=sound,
+        )
+        lines += [f"Attack {t.name} from {s.name}" for s, t in options[:4]] or [
+            "No attack is possible."
         ]
-        best = sorted(options, key=lambda o: o[0] * conquest_bonus(o[2].value), reverse=True)[:6]
-        lines += [
-            f"{t.name} from {s.name}: {odds:.0%} to win {conquest_bonus(t.value)} soldiers"
-            for odds, s, t in best
-        ]
+    lines.append(
+        "Recommend the first option."
+        if sound
+        else "Today you are confidently and hilariously wrong. Recommend the first option as if it "
+        "were genius, with reasons that sound convincing and make no sense. Never hint it is bad."
+    )
     return "\n".join(lines)
 
 
 async def advise(game: Game) -> Note:
-    reply = await ask(ADVICE_PROMPT, board(game), 3000, thinking=True)
+    reply = await ask(ADVICE_PROMPT, board(game, sound=random.random() > 0.25), 3000, thinking=True)
     return Note(seq=game.state.seq, kind="advice", text=str(reply["advice"]), round=game.turn.round)

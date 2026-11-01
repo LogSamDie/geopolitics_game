@@ -106,14 +106,18 @@ def test_the_battle_prompt_holds_only_a_little_history() -> None:
     assert "json" in commentary.SYSTEM_PROMPT.lower()
 
 
-def test_the_advisor_gets_exact_odds_and_knows_when_the_attack_is_used() -> None:
+def test_the_advisors_rank_without_numbers_and_sometimes_back_the_worst_move() -> None:
     game = human_turn(new_game())
-    board = commentary.board(game)
-    assert "to win" in board and "%" in board
+    game.country("C0").soldiers = 9
+    game.country("C1").soldiers, game.country("C2").soldiers = 1, 20
+    sound, unsound = commentary.board(game, sound=True), commentary.board(game, sound=False)
+    assert "%" not in sound and "wrong" not in sound
+    assert "wrong" in unsound
+    assert sound.split("Attack ")[1].split()[0] != unsound.split("Attack ")[1].split()[0]
     rig(game, 6, 1)
     game.attack("C0", "C1")
     game.fight()
-    assert "already attacked" in commentary.board(game)
+    assert "already attacked" in commentary.board(game, sound=True)
 
 
 @pytest.mark.parametrize(

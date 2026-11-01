@@ -209,10 +209,17 @@
   </div>
 
   <div class="panel">
-    <h2 class:result={out || turn.phase === 'over'}>
-      <i class="swatch" style:background={colorOf(out ? playback.human : turn.player)}></i>
-      {heading}
-    </h2>
+    <div class="title">
+      <h2 class:result={out || turn.phase === 'over'}>
+        <i class="swatch" style:background={colorOf(out ? playback.human : turn.player)}></i>
+        {heading}
+      </h2>
+      {#if canAct && turn.phase !== 'attack' && !advice}
+        <button class="quiet" disabled={asking || pending} onclick={ask}>
+          {asking ? 'Asking your commanders…' : 'Ask your commanders'}
+        </button>
+      {/if}
+    </div>
     {#if sides}
       <div class="fight">
         <div class="sides">
@@ -233,10 +240,6 @@
     {#if error}<p class="error">{error}</p>{/if}
     {#if playback.playing}
       <button class="speed" onclick={() => playback.toggleSpeed()}>{speedLabel}</button>
-    {:else if canAct && turn.phase !== 'attack' && !advice}
-      <button class="speed" disabled={asking || pending} onclick={ask}
-        >{asking ? 'Asking your commanders…' : 'Ask your commanders'}</button
-      >
     {/if}
     <fieldset disabled={pending || asking}>
       {#if !isOwner}
@@ -387,16 +390,6 @@
 
   header {
     grid-area: header;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.4rem 1rem;
-    border-bottom: 1px solid var(--ink);
-  }
-
-  .brand {
-    color: var(--ink);
-    text-decoration: none;
   }
 
   .copy {
@@ -490,6 +483,14 @@
 
   .sides b {
     text-align: right;
+  }
+
+  .title {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    column-gap: 1rem;
   }
 
   .panel h2 {
@@ -614,7 +615,7 @@
       border-width: 1px 0 0;
     }
 
-    .panel h2 {
+    .title {
       order: -3;
     }
 
