@@ -1,4 +1,4 @@
-"""The one strategy every NPC plays, with a stated reason for each decision."""
+"""How NPCs play, by personality, with a stated reason for each decision."""
 
 from math import comb
 from typing import NamedTuple
@@ -14,6 +14,28 @@ def win_probability(attackers: int, defenders: int) -> float:
     return sum(comb(flips, k) for k in range(defenders, flips + 1)) / (1 << flips)
 
 
+class Personality(NamedTuple):
+    voice: str
+    attack_odds: float  # the least chance of winning it starts an attack with
+    stop_odds: float  # it withdraws below this
+    garrison: float  # the share of the army it moves into a conquest
+
+
+PERSONALITIES = {
+    "Marshal Tundra": Personality("pompous, quotes their own memoirs", 0.5, 0.25, 0.5),
+    "General Isthmus": Personality("weary bureaucrat, cites regulations", 0.5, 0.25, 0.5),
+    "Admiral Atoll": Personality("reckless sea dog, loves a gamble", 0.35, 0.15, 0.25),
+    "Colonel Steppe": Personality("cautious and gloomy, expects the worst", 0.65, 0.4, 0.75),
+    "Baroness Delta": Personality("haughty aristocrat, finds war vulgar", 0.35, 0.15, 0.25),
+    "President Mesa": Personality("slippery politician, always campaigning", 0.65, 0.4, 0.75),
+    "Commodore Fjord": Personality("laconic, says as little as possible", 0.65, 0.4, 0.75),
+    "Chancellor Savanna": Personality("cheerfully menacing, loves a metaphor", 0.35, 0.15, 0.25),
+    "Generalissimo Oasis": Personality(
+        "vain, refers to themselves in the third person", 0.5, 0.25, 0.5
+    ),
+}
+
+
 class Option(NamedTuple):
     source: Country
     target: Country
@@ -23,6 +45,7 @@ class Option(NamedTuple):
 def play_turn(game: Game) -> None:
     me = game.turn.player
     mine = game.countries_of(me)
+    character = PERSONALITIES[game.current_player.name]
     if game.turn.phase == "reinforce":
         army = max(mine, key=lambda c: c.soldiers)
         game.reinforce(
@@ -39,7 +62,7 @@ def play_turn(game: Game) -> None:
     if not options:
         game.end_turn(reason="No country has the 2 soldiers needed to attack.")
         return
-    viable = [o for o in options if o.odds >= 0.5]
+    viable = [o for o in options if o.odds >= character.attack_odds]
     if not viable:
         best = max(options, key=lambda o: o.odds)
         game.end_turn(
@@ -57,7 +80,7 @@ def play_turn(game: Game) -> None:
     )
     while game.turn.phase == "attack":
         odds = win_probability(source.soldiers, target.soldiers)
-        if odds < 0.25:
+        if odds < character.stop_odds:
             game.stop(
                 reason=f"With {source.soldiers} soldiers left the chance of taking "
                 f"{target.name} has dropped to {odds:.0%}."
@@ -70,7 +93,7 @@ def play_turn(game: Game) -> None:
         game.transfer(
             source.code,
             target.code,
-            source.soldiers // 2,
+            max(1, int(source.soldiers * character.garrison)),
             reason=f"{target.name} needs more soldiers to hold.",
         )
     game.end_turn()

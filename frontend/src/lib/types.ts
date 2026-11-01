@@ -52,6 +52,16 @@ export interface GameView {
   owner: string
   state: { players: Player[] }
   events: GameEvent[]
+  notes: Note[]
+  pending: number
+}
+
+export interface Note {
+  seq: number
+  kind: 'line' | 'taunt' | 'advice'
+  text: string
+  player: string | null
+  round: number | null
 }
 
 export interface GameSummary {

@@ -25,4 +25,5 @@ export const api = {
   createGame: (country: string) => request<GameView>('POST', '/api/games', { country }),
   game: (id: string, after = 0) => request<GameView>('GET', `/api/games/${id}?after=${after}`),
   play: (id: string, command: Command) => request<GameView>('POST', `/api/games/${id}/commands`, command),
+  advice: (id: string) => request<GameView>('POST', `/api/games/${id}/advice`),
 }

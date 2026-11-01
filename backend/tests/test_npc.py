@@ -3,6 +3,7 @@ import random
 import pytest
 
 from app import npc
+from app.engine import NPC_NAMES
 from tests.helpers import give_turn, new_game, rig
 
 
@@ -140,3 +141,20 @@ def test_run_plays_on_to_an_npc_winner_after_the_human_is_eliminated() -> None:
     npc.run(game)
     assert game.turn.phase == "over"
     assert game.turn.winner is not None and game.player(game.turn.winner).npc
+
+
+def test_every_commander_has_a_personality() -> None:
+    assert set(npc.PERSONALITIES) == set(NPC_NAMES)
+
+
+def test_a_reckless_commander_attacks_where_a_cautious_one_does_not() -> None:
+    for name, attacks in (("Admiral Atoll", True), ("Colonel Steppe", False)):
+        game = new_game(values=[9, 3, 9, 9, 9, 9, 9, 9, 9, 9])
+        game.player("p1").name = name
+        give_turn(game, "p1")
+        for country in game.state.countries[2:]:
+            country.soldiers = 3
+        game.country("C1").soldiers = 4  # 4 vs 3 is 50%
+        rig(game, 6, 1)
+        npc.play_turn(game)
+        assert any(e.kind == "attacked" for e in game.events) == attacks

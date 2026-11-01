@@ -32,8 +32,10 @@ cd frontend && npm run check && npm run build
 
 The API tests need MongoDB. Formatters: `uv run ruff format .` and `npm run format`.
 
-Settings are the environment variables `MONGO_URL` (default `mongodb://localhost:27017`) and
-`STATIC_DIR` (`static`, where the built frontend is served from).
+Settings are the environment variables `MONGO_URL` (default `mongodb://localhost:27017`),
+`MONGO_DB` (`geopolitics`), `STATIC_DIR` (`static`, where the built frontend is served from),
+`COOKIE_SECURE` (`true`; Compose sets `false` because it serves plain HTTP) and `DEEPSEEK_API_KEY`,
+which Compose reads from a `.env` file. Without that key there is no commentary or advice.
 
 In VS Code, open the repository root and accept the recommended extensions.
 
@@ -41,7 +43,7 @@ In VS Code, open the repository root and accept the recommended extensions.
 
 - **Backend**: Python 3.13, FastAPI, PyMongo's async client, fully typed (mypy strict).
 - **Frontend**: Svelte 5 with TypeScript, built by Vite, MapLibre GL JS for the board.
-- **Database**: MongoDB, three collections: `users`, `sessions`, `games`.
+- **Database**: MongoDB, four collections: `users`, `sessions`, `games`, `events`.
 - **Deployment**: one multi-stage Docker image that builds the frontend, then serves it from
   the API process. Every push to `main` publishes it to `ghcr.io/logsamdie/geopolitics_game`.
 
@@ -54,10 +56,18 @@ board from the events it has shown and reveals new ones with a pause, so battles
 play out visibly. Fast-forward shortens the pause, and the replay slider moves back through them.
 
 - `backend/app/engine.py`: the rules.
-- `backend/app/npc.py`: the NPC strategy. It reinforces its largest army, attacks the target with
-  the best expected gain among those with at least even odds, withdraws below a quarter, and moves
-  half the attacking army into a conquest.
+- `backend/app/npc.py`: how NPCs play. Each reinforces its largest army and attacks the target with
+  the best expected gain. Its personality sets the odds it attacks with, the odds it withdraws
+  below and the share of its army it moves into a conquest.
 - `backend/app/games.py`, `auth.py`: the HTTP API.
+- `backend/app/db.py`: Mongo. Events are stored gzipped, one record per move, because the free Atlas
+  tier counts uncompressed bytes.
+- `backend/app/commentary.py`: commentary, commander letters and advice from `deepseek-flash`.
+  Commentary takes one call per battle, written in the background after the moves are saved. A
+  commander's letter after a conquest uses thinking, at most once every three rounds unless someone
+  is knocked out. The advisor uses thinking too, once per round when asked, and explains odds the
+  server worked out. Once the human is out, only battles that knock someone
+  out get commentary, and the feed shows `. . .` for the rest.
 - `frontend/src/lib/playback.svelte.ts`: the events the UI renders from.
 - `frontend/src/lib/Map.svelte`: the board.
 - `scripts/build_countries.py`: builds the country data from worldometers.info and Natural Earth.
@@ -79,7 +89,3 @@ The rules follow the assignment. Where it leaves a gap we chose:
 - Dice are paired in the order rolled (die 1 against die 1), the higher roll wins, a tie kills
   nobody, and the number of dice is the smaller of the defender's soldiers and the attacker's
   soldiers minus one. Any country may attack any other.
-
-## Not yet done
-
-- LLM commentary on battles (planned with DeepSeek).

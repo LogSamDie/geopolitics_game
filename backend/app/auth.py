@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import os
 import secrets
 from datetime import UTC, datetime
 from typing import Annotated
@@ -11,6 +12,8 @@ from pymongo.errors import DuplicateKeyError
 from . import db
 
 router = APIRouter(prefix="/api/auth")
+
+SECURE_COOKIE = os.environ.get("COOKIE_SECURE", "true") != "false"
 
 
 class Credentials(BaseModel):
@@ -47,7 +50,14 @@ async def start_session(response: Response, user: db.Document) -> User:
     await db.sessions.insert_one(
         {"_id": token, "user_id": user["_id"], "created": datetime.now(UTC)}
     )
-    response.set_cookie("session", token, httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    response.set_cookie(
+        "session",
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=SECURE_COOKIE,
+        max_age=30 * 24 * 3600,
+    )
     return User(id=str(user["_id"]), username=user["username"])
 
 
@@ -76,7 +86,7 @@ async def login(credentials: Credentials, response: Response) -> User:
 @router.post("/logout", status_code=204)
 async def logout(response: Response, session: Annotated[str | None, Cookie()] = None) -> None:
     await db.sessions.delete_one({"_id": session})
-    response.delete_cookie("session")
+    response.delete_cookie("session", httponly=True, samesite="lax", secure=SECURE_COOKIE)
 
 
 @router.get("/me")

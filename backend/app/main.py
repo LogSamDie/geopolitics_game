@@ -15,6 +15,8 @@ STATIC = Path(os.environ.get("STATIC_DIR", "static")).resolve()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await db.create_indexes()
+    # What was still being written is lost in a restart.
+    await db.games.update_many({"pending": {"$gt": 0}}, {"$set": {"pending": 0}})
     yield
     await db.client.close()
 

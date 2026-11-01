@@ -1,4 +1,4 @@
-import type { GameEvent, GameView } from './types'
+import type { GameEvent, GameView, Note } from './types'
 
 /** The board after the first `shown` of the events, revealed one at a time with a pause. */
 export class Playback {
@@ -6,6 +6,8 @@ export class Playback {
   events = $state<GameEvent[]>([])
   shown = $state(0)
   fast = $state(false)
+  notes = $state<Note[]>([])
+  pending = $state(0)
   private timer = $state<ReturnType<typeof setTimeout>>()
 
   readonly log = $derived(this.events.slice(0, this.shown))
@@ -15,6 +17,8 @@ export class Playback {
   constructor(view: GameView) {
     this.human = view.state.players.find((p) => !p.npc)!.id
     this.events = view.events
+    this.notes = view.notes
+    this.pending = view.pending
     // Show at once up to the player's last move and play out the rest. A finished game opens at
     // its end, unless the player was out before ever moving and has yet to see what happened.
     const lastMove = view.events.findLastIndex((e) => e.turn.player === this.human && e.kind !== 'turn')
@@ -43,8 +47,10 @@ export class Playback {
     return this.timer !== undefined
   }
 
-  add(events: GameEvent[]): void {
-    const fresh = events.filter((e) => e.seq > this.seq)
+  update(view: GameView): void {
+    this.notes = view.notes
+    this.pending = view.pending
+    const fresh = view.events.filter((e) => e.seq > this.seq)
     // A batch that skips ahead (another device moved) waits for the poll, which brings all of it.
     if (fresh[0]?.seq !== this.seq + 1) return
     this.events.push(...fresh)
@@ -63,6 +69,11 @@ export class Playback {
     if (stopping) return
     if (!this.busy) this.shown = 0
     this.step()
+  }
+
+  move(steps: number): void {
+    this.pause()
+    this.shown += steps
   }
 
   toggleSpeed(): void {

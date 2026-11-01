@@ -3,10 +3,12 @@
   import { api, message } from './lib/api'
   import { colorOf } from './lib/colors'
   import Dice from './lib/Dice.svelte'
+  import Feed from './lib/Feed.svelte'
   import Log from './lib/Log.svelte'
   import Map from './lib/Map.svelte'
+  import Named from './lib/Named.svelte'
   import { Playback } from './lib/playback.svelte'
-  import type { Command, GameView, Route, User } from './lib/types'
+  import type { Command, GameView, Note, Route, User } from './lib/types'
 
   interface Props {
     view: GameView
@@ -23,14 +25,19 @@
   let amount = $state(1)
   let copied = $state(false)
   let ended = $state(false) // the end of the game has been shown
+  let asking = $state(false)
+  let dismissed = $state(0) // the last commander's message read
 
   onMount(() => {
     const poll = setInterval(() => {
-      if (!playback.over)
-        api.game(view.id, playback.seq).then(
-          (v) => playback.add(v.events),
-          () => {},
-        )
+      if (playback.over && !playback.pending) return
+      const seq = playback.seq
+      api.game(view.id, seq).then(
+        (v) => {
+          if (seq === playback.seq) playback.update(v) // else a move has overtaken this poll
+        },
+        () => {},
+      )
     }, 2000)
     return () => {
       clearInterval(poll)
@@ -43,7 +50,7 @@
   const countries = $derived(Object.values(playback.countries))
   const humanToMove = $derived(isOwner && turn.player === playback.human)
   const canAct = $derived(humanToMove && !playback.busy && turn.phase !== 'over')
-  const canPick = $derived(canAct && !pending && turn.phase !== 'attack')
+  const canPick = $derived(canAct && !pending && !asking && turn.phase !== 'attack')
   const from = $derived(source ? playback.countries[source] : undefined)
   const to = $derived(target ? playback.countries[target] : undefined)
   const limit = $derived(turn.phase === 'reinforce' ? turn.reinforcements : (from?.soldiers ?? 1) - 1)
@@ -62,6 +69,29 @@
     if (source && target) return { source, target, attack: to?.owner !== playback.human, live: false }
     if (!source && last.kind === 'transferred' && playback.running)
       return { source: last.countries[0].code, target: last.countries[1].code, attack: false, live: true }
+  })
+  const told = $derived(playback.notes.filter((n) => n.seq <= last.seq))
+  // The notes in order, with null where battles went by without any, as after the player is out.
+  // Battles are written in order, so only those after the last line can still get one.
+  const feed = $derived.by(() => {
+    if (!told.length) return []
+    const written = playback.pending ? (told.findLast((n) => n.kind !== 'advice')?.seq ?? 0) : Infinity
+    const items: (Note | null)[] = []
+    for (const event of playback.log) {
+      const notes = told.filter((n) => n.seq === event.seq)
+      if (event.kind === 'attacked' && event.seq <= written && !notes.length && items.at(-1) !== null) items.push(null)
+      items.push(...notes)
+    }
+    return items
+  })
+  const line = $derived(told.find((n) => n.kind === 'line' && n.seq === last.seq))
+  const advice = $derived(humanToMove ? told.find((n) => n.kind === 'advice' && n.round === turn.round) : undefined)
+  // A commander's message waits for a calm moment in the player's move, or goes out once they
+  // have no moves left. It is gone after their next move, and from replays.
+  const taunt = $derived.by(() => {
+    if (!isOwner || ended || (held.length && (!canAct || source || pending))) return
+    const move = playback.log.findLast((e) => e.turn.player === playback.human && e.kind !== 'turn')
+    return told.findLast((n) => n.kind === 'taunt' && n.seq >= (move?.seq ?? 0) && n.seq > dismissed)
   })
   const marked = $derived(route ? [route.source, route.target] : source ? [source] : [])
 
@@ -127,14 +157,26 @@
     error = ''
     pending = true
     try {
-      const { events } = await api.play(view.id, command)
+      const moved = await api.play(view.id, command)
       if (!playback.busy) playback.pause() // the player's own move shows at once
-      playback.add(events)
+      playback.update(moved)
       clearChoice()
     } catch (e) {
       error = message(e)
     } finally {
       pending = false
+    }
+  }
+
+  async function ask(): Promise<void> {
+    error = ''
+    asking = true
+    try {
+      playback.update(await api.advice(view.id))
+    } catch (e) {
+      error = message(e)
+    } finally {
+      asking = false
     }
   }
 
@@ -146,6 +188,8 @@
     else if (own) source = code
   }
 
+  const open = (dialog: HTMLDialogElement) => dialog.showModal()
+
   function copyLink(): void {
     navigator.clipboard.writeText(location.href).then(() => {
       copied = true
@@ -153,6 +197,11 @@
     })
   }
 </script>
+
+{#snippet advised(note: Note)}
+  <Named text="{nameOf(playback.human)} was advised by their commanders:" players={view.state.players} />
+  <blockquote><Named text="“{note.text}”" players={view.state.players} /></blockquote>
+{/snippet}
 
 <div class="layout">
   <header>
@@ -184,11 +233,17 @@
     {/if}
     {#if last.kind !== 'turn' && last.kind !== 'over'}<p>{last.text}</p>{/if}
     {#if last.reason}<p class="muted"><em>{last.reason}</em></p>{/if}
+    {#if line}<p class="line"><Named text={line.text} players={view.state.players} /></p>{/if}
+    {#if advice}<div class="advice">{@render advised(advice)}</div>{/if}
     {#if error}<p class="error">{error}</p>{/if}
     {#if playback.playing}
       <button class="speed" onclick={() => playback.toggleSpeed()}>{speedLabel}</button>
+    {:else if canAct && turn.phase !== 'attack' && !advice}
+      <button class="speed" disabled={asking || pending} onclick={ask}
+        >{asking ? 'Asking your commanders…' : 'Ask your commanders'}</button
+      >
     {/if}
-    <fieldset disabled={pending}>
+    <fieldset disabled={pending || asking}>
       {#if !isOwner}
         <p class="muted">
           You are watching this game.
@@ -258,9 +313,11 @@
 
   {#if ended}
     <div class="replay">
+      <button aria-label="Previous step" disabled={playback.shown <= 1} onclick={() => playback.move(-1)}>‹</button>
       <button class="toggle" onclick={() => playback.toggle()}>
         {playback.playing ? 'Stop' : playback.busy ? 'Play' : 'Replay'}
       </button>
+      <button aria-label="Next step" disabled={!playback.busy} onclick={() => playback.move(1)}>›</button>
       <input
         type="range"
         min="1"
@@ -269,8 +326,16 @@
         oninput={() => playback.pause()}
         aria-label="Replay position"
       />
-      <span class="muted">Step {playback.shown} of {playback.events.length}</span>
+      <span class="muted">{playback.shown} / {playback.events.length}</span>
     </div>
+  {/if}
+
+  {#if taunt}
+    <dialog use:open onclose={() => (dismissed = taunt.seq)}>
+      <h2><i class="swatch" style:--owner={colorOf(taunt.player!)}></i> {nameOf(taunt.player)} writes</h2>
+      <p>“<Named text={taunt.text} players={view.state.players} />”</p>
+      <form method="dialog"><button class="primary">Dismiss</button></form>
+    </dialog>
   {/if}
 
   <aside>
@@ -288,6 +353,26 @@
         </button>
       {/each}
     </section>
+
+    <Feed title="Commentary" size={feed.length}>
+      {#each feed as note, i (i)}
+        {#if note}
+          <li class={note.kind}>
+            {#if note.kind === 'advice'}
+              {@render advised(note)}
+            {:else if note.kind === 'taunt'}
+              <Named text="{nameOf(note.player)}: “{note.text}”" players={view.state.players} />
+            {:else}
+              <Named text={note.text} players={view.state.players} />
+            {/if}
+          </li>
+        {:else}
+          <li class="muted gap" title="No commentary was written for these battles">. . .</li>
+        {/if}
+      {:else}
+        <li class="muted">No commentary.</li>
+      {/each}
+    </Feed>
 
     <Log events={playback.log} />
   </aside>
@@ -324,6 +409,51 @@
 
   .copy {
     min-width: 7em;
+  }
+
+  .taunt {
+    font-style: italic;
+  }
+
+  dialog {
+    width: min(28rem, 100vw - 2rem);
+    padding: 0.9rem 1.1rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--ink);
+  }
+
+  dialog::backdrop {
+    background: rgb(43 34 25 / 0.35);
+  }
+
+  dialog h2 {
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  dialog p {
+    font-size: 18px;
+    font-style: italic;
+  }
+
+  dialog form {
+    margin-top: 0.75rem;
+    text-align: right;
+  }
+
+  div.advice {
+    margin-top: 0.5rem;
+  }
+
+  .gap {
+    text-align: center;
+  }
+
+  blockquote {
+    margin: 0.25rem 0 0;
+    padding-left: 0.6rem;
+    border-left: 2px solid var(--ink);
   }
 
   .board {
@@ -390,10 +520,14 @@
     margin-top: 0.5rem;
   }
 
+  p.line {
+    display: none;
+  }
+
   .replay {
     grid-area: replay;
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
     align-items: center;
     padding: 0.4rem 1rem;
     border-top: 1px solid var(--ink);
@@ -411,13 +545,14 @@
   }
 
   .replay span {
-    min-width: 8em;
+    min-width: 6em;
+    text-align: right;
   }
 
   aside {
     grid-area: aside;
     display: grid;
-    grid-template-rows: auto minmax(10rem, 1fr);
+    grid-template-rows: auto minmax(8rem, 2fr) minmax(8rem, 3fr);
     padding: 0.75rem 1rem;
     background: var(--panel);
     border-left: 1px solid var(--ink);
@@ -500,8 +635,25 @@
       order: -1;
     }
 
+    p.line {
+      display: block;
+    }
+
     .fight {
       flex-wrap: wrap;
+    }
+
+    .replay {
+      flex-wrap: wrap;
+    }
+
+    .replay input {
+      order: 1;
+      flex-basis: 100%;
+    }
+
+    .replay span {
+      flex: 1;
     }
 
     .sides {
@@ -509,6 +661,7 @@
     }
 
     aside {
+      grid-template-rows: none;
       border-left: 0;
       border-top: 1px solid var(--ink);
     }
@@ -525,10 +678,6 @@
 
     .countries small {
       display: none;
-    }
-
-    aside :global(ol) {
-      max-height: 50vh;
     }
   }
 </style>

@@ -12,6 +12,8 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       MONGO_URL: mongodb://mongo:27017
+      COOKIE_SECURE: "false"
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     depends_on:
       - mongo
 
