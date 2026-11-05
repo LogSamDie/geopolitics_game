@@ -1,91 +1,76 @@
 # Geopoly
 
-A single-player conquest game in the browser, built for the INF4001N entrance exam. You pick a
-country, nine others go to NPCs, and whoever holds all ten wins. Anyone with a game's link can
-watch it; only its logged-in owner can play.
+## Getting started
 
-## How to run
+This is [Geopoly](geopo.ly), a browser-based geopolitics game modeled after the 1957 strategic board game [_Risk_](<https://en.wikipedia.org/wiki/Risk_(game)>). It is a single player game where one competes against NPCs.
 
-With Docker (the way it is deployed):
+It's implemented as a Single Page App with an API server written in Python. The frontend uses the [Svelte](https://svelte.dev/) framework and the backend uses the [FastAPI](https://fastapi.tiangolo.com/) framework. MongoDB is used as the database and the DeepSeek API is used to enhance it with AI features.
 
-```sh
-docker compose up --build
-```
+Games can be shared using a link and watched or replayed by other people. Here is an example game which may be replayed: https://geopo.ly/games/6ae90059cd926d481be7eae2
 
-Open <http://localhost:8000>, sign up and start a game. MongoDB runs in its own container and
-keeps its data in a named volume.
+## Deployment
+
+The application, including the frontend bundle is packaged into a [Docker Container Image](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/).
+
+The repository is hosted on GitHub and on any push, the image is built and pushed to its public image registry. A server continuously watches this registry and pulls and deploys any newly available image. The server runs Docker and is hosted at [Hetzner](https://www.hetzner.com/).
+
+For the database, the hosted [MongoDB Atlas](https://www.mongodb.com/products/platform/atlas-database) product is used. The backend also has a DeepSeek AI API key and the domain pointing to the production application is [geopo.ly](https://geopo.ly).
+
+## Development (how to run)
 
 For development, run the database, the API and the frontend separately:
 
 ```sh
-docker compose up mongo                                   # MongoDB on localhost:27017
-cd backend && uv sync && uv run uvicorn app.main:app --reload   # API on :8000
-cd frontend && npm install && npm run dev                 # Vite on :5173, proxies /api to :8000
+# Start the/a database
+docker compose up mongo # Available at localhost:27017
+
+# Start the backend
+cd backend && uv sync && uv run uvicorn app.main:app --reload # Available at localhost:8000
+
+# Start the frontend
+cd frontend && npm install && npm run dev # Available at localhost:5173
 ```
 
-Checks:
+These environment variables can be used to configure the backend:
 
-```sh
-cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
-cd frontend && npm run check && npm run build
-```
+- `COOKIE_SECURE` (set to `"true"` in production)
+- `MONGO_URL` (self explanatory, pointed at Atlas in production)
+- `MONGO_DB` (e.g. `geopoly`)
+- `DEEPSEEK_API_KEY` (a deepseek ai api key with some funds loaded up)
 
-The API tests need MongoDB. Formatters: `uv run ruff format .` and `npm run format`.
+## Extra features
 
-Settings are the environment variables `MONGO_URL` (default `mongodb://localhost:27017`),
-`MONGO_DB` (`geopolitics`), `STATIC_DIR` (`static`, where the built frontend is served from),
-`COOKIE_SECURE` (`true`; Compose sets `false` because it serves plain HTTP) and `DEEPSEEK_API_KEY`,
-which Compose reads from a `.env` file. Without that key there is no commentary or advice.
+- Each game can be replayed and each move can be scrubbed through with a slider.
+- With a shared game link, one can view a game going on in real time.
+- The NPCs have made up names and personalities. The personalities do currently _not_ affect their playstyle but do affect interactions with them.
+- NPCs will send funny custom letters/notes (for example if they lose against the player).
+- The AI based commentary uses real locations of the countries where battles are happening.
+- Exchanging soldiers and attacking are animated.
+- All game moves and dice rolls are calculated on the server side, so that browser side cheating is not possible.
 
-In VS Code, open the repository root and accept the recommended extensions.
+## Future ideas
 
-## Stack
+There are currently no alliances/diplomacy. There are no analytics besides the data in the database and logs. There are no difficulty levels to choose from (besides choosing the country which influences the starting soldier count).
 
-- **Backend**: Python 3.13, FastAPI, PyMongo's async client, fully typed (mypy strict).
-- **Frontend**: Svelte 5 with TypeScript, built by Vite, MapLibre GL JS for the board.
-- **Database**: MongoDB, four collections: `users`, `sessions`, `games`, `events`.
-- **Deployment**: one multi-stage Docker image that builds the frontend, then serves it from
-  the API process. Every push to `main` publishes it to `ghcr.io/logsamdie/geopolitics_game`.
+The NPC play style is heuristic and currently not based on AI. It is intentionally kept simple as one of the next features could be to add some AI controlled NPCs. Note that a player currently may learn how to outsmart the NPC engine by playing a few games!
 
-## How it works
+Since the DeepSeek AI API is so easy to use and cheap, there could be a lot more AI influenced features in the future, such as more immersively described battles, AI created mini games in battles etc.
 
-The server owns every rule and dice roll. The browser sends intents (reinforce, transfer, attack,
-roll, roll to the end, stop, end turn) and gets back the resulting events, including the NPC turns.
-Each event carries the countries it changed and the turn as it then stood. The browser builds the
-board from the events it has shown and reveals new ones with a pause, so battles and NPC decisions
-play out visibly. Fast-forward shortens the pause, and the replay slider moves back through them.
+One thing I'd like to add next are sound effects and images/drawings of the NPC personalities.
 
-- `backend/app/engine.py`: the rules.
-- `backend/app/npc.py`: how NPCs play. Each reinforces its largest army and attacks the target with
-  the best expected gain. Its personality sets the odds it attacks with, the odds it withdraws
-  below and the share of its army it moves into a conquest.
-- `backend/app/games.py`, `auth.py`: the HTTP API.
-- `backend/app/db.py`: Mongo. Events are stored gzipped, one record per move, because the free Atlas
-  tier counts uncompressed bytes.
-- `backend/app/commentary.py`: commentary, commander letters and advice from `deepseek-flash`.
-  Commentary takes one call per battle, written in the background after the moves are saved. A
-  commander's letter after a conquest uses thinking, at most once every three rounds unless someone
-  is knocked out. The advisor uses thinking too, once per round when asked. Exact odds rank its
-  options, but it never sees the numbers, and one time in four it argues for the worst ones. Once the human is out, only battles that knock someone
-  out get commentary, and the feed shows `. . .` for the rest.
-- `frontend/src/lib/playback.svelte.ts`: the events the UI renders from.
-- `frontend/src/lib/Map.svelte`: the board.
-- `scripts/build_countries.py`: builds the country data from worldometers.info and Natural Earth.
+## AI
 
-## Rules and assumptions
+AI is used at runtime while playing the game. Also, some AI was used during the creation of the project, the extent of which is explained below.
 
-The rules follow the assignment. Where it leaves a gap we chose:
+### At runtime
 
-- The soldiers gained for a conquest (max of 2 and half the country's value) are placed in the
-  conquered country. The attacker may then move more soldiers into it, or anywhere else, before
-  ending the turn.
-- Stopping an attack ends the turn immediately, as the assignment says. An attack that ends by
-  itself (conquest, or the attacker is down to 1 soldier) leaves the player in their turn, where
-  they can still move soldiers before ending it.
-- Reinforcements are placed first; transfers and the attack follow. Since placing only adds
-  soldiers, this never limits what a player can do with a turn.
-- A player eliminated from the game is skipped. If the human player is eliminated the NPCs play on
-  until one of them holds all ten countries.
-- Dice are paired in the order rolled (die 1 against die 1), the higher roll wins, a tie kills
-  nobody, and the number of dice is the smaller of the defender's soldiers and the attacker's
-  soldiers minus one. Any country may attack any other.
+AI features are implemented and kept in `backend/app/commentary.py`. The AI model used is DeepSeek v4.1 Flash, a cheap, fast but competent model.
+
+The model is given a system prompt as well as the game state and a few of the previously made moves. It is instructed to return commentary based on that which includes real places of the countries in a battle. It is instructed to return the output in JSON format.
+
+### During development
+
+It's important to say: while AI has gotten good enough to program complicated code, one must be responsible and reasonable in reviewing and curating any outputs. Also, AI is not yet good enough at prose, so e.g. this README is fully human written.
+
+During development, I was assisted by Claude Code, though making important decisions myself (e.g. what map library to use, how auth should work) and following the principles explained above. Critical sections were implemented by hand.
+
